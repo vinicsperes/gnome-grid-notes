@@ -86,11 +86,12 @@ export function move(items, id, x, y, cols) {
     return reflow(items, id, clamp({...item, x, y}, cols), cols);
 }
 
-export function resize(items, id, w, h, cols) {
+// `x` moves with the size so a card can grow towards the side with room.
+export function resize(items, id, w, h, cols, x) {
     const item = items.find(i => i.id === id);
     if (!item)
         return items;
-    return reflow(items, id, clamp({...item, w, h}, cols), cols);
+    return reflow(items, id, clamp({...item, x: x ?? item.x, w, h}, cols), cols);
 }
 
 // Pixel geometry. `x` counts from the right edge of the area, so notes stay

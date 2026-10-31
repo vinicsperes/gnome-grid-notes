@@ -8,10 +8,11 @@ import St from 'gi://St';
 import * as Main from 'resource:///org/gnome/shell/ui/main.js';
 
 import {Card} from './card.js';
-import {compact, metrics, move, place} from './grid.js';
+import {compact, metrics, move, place, resize} from './grid.js';
 
 const SIZES = {cell: 141, row: 18, gap: 18, margin: 40};
 const DEFAULT_WIDTH = 2;
+const MIN_WIDTH = 2;
 // How many columns notes without a saved position spread across.
 const INITIAL_COLUMNS = 8;
 const REFRESH_SECONDS = 30 * 60;
@@ -245,6 +246,84 @@ export class Board {
         actor.connect('button-press-event', (_, event) => this._onPress(card, event));
         actor.connect('motion-event', (_, event) => this._onMotion(event));
         actor.connect('button-release-event', (_, event) => this._onRelease(event));
+
+        for (const grip of card.grips) {
+            grip.connect('button-press-event', (_, event) => this._onGripPress(card, grip, event));
+            grip.connect('motion-event', (_, event) => this._onGripMotion(event));
+            grip.connect('button-release-event', (_, event) => this._onGripRelease(event));
+        }
+    }
+
+    _onGripPress(card, grip, event) {
+        if (this._gesture || event.get_button() !== Clutter.BUTTON_PRIMARY)
+            return Clutter.EVENT_PROPAGATE;
+        const [x, y] = event.get_coords();
+        const {actor} = card;
+        actor.remove_all_transitions();
+        this._gesture = {
+            card,
+            resizing: true,
+            side: grip.side,
+            lifted: false,
+            pressX: x,
+            pressY: y,
+            startWidth: actor.width,
+            startHeight: actor.height,
+            cell: null,
+            base: this._layout,
+            grab: global.stage.grab(grip),
+        };
+        this.layer.set_child_above_sibling(actor, null);
+        this._dots.show();
+        this._dots.remove_all_transitions();
+        this._dots.ease({opacity: 255, ...MOTION.fade});
+        return Clutter.EVENT_STOP;
+    }
+
+    _onGripMotion(event) {
+        const gesture = this._gesture;
+        if (!gesture?.resizing)
+            return Clutter.EVENT_PROPAGATE;
+        const [x, y] = event.get_coords();
+        const {card} = gesture;
+        const grid = this._metrics();
+        const item = gesture.base.find(i => i.id === card.file);
+
+        const pulled = x - gesture.pressX;
+        const wide = gesture.startWidth + (gesture.side === 'right' ? pulled : -pulled);
+        const w = Math.max(MIN_WIDTH, Math.min(grid.cols,
+            Math.round((wide + SIZES.gap) / grid.stepX)));
+        const tall = gesture.startHeight + y - gesture.pressY;
+        const contentRows = grid.rowsFor(card.naturalHeight(grid.widthOf(w)));
+        const h = Math.max(contentRows, Math.round((tall + SIZES.gap) / grid.stepY));
+
+        if (gesture.cell?.w === w && gesture.cell?.h === h)
+            return Clutter.EVENT_STOP;
+        gesture.cell = {w, h};
+        card.userRows = h > contentRows ? h : 0;
+        // x counts from the right, so the left grip leaves it alone while the
+        // right one has to move it to keep the left edge still.
+        const x0 = gesture.side === 'left' ? item.x : Math.max(0, item.x + item.w - w);
+        this._layout = resize(gesture.base, card.file, w, h, grid.cols, x0);
+        this._applyLayout(grid);
+        return Clutter.EVENT_STOP;
+    }
+
+    _onGripRelease(event) {
+        const gesture = this._gesture;
+        if (!gesture?.resizing || event.get_button() !== Clutter.BUTTON_PRIMARY)
+            return Clutter.EVENT_PROPAGATE;
+        gesture.grab.dismiss();
+        this._gesture = null;
+        this._dots.remove_all_transitions();
+        this._dots.ease({
+            opacity: 0,
+            ...MOTION.fade,
+            onComplete: () => this._dots.hide(),
+        });
+        this._persist();
+        this._catchUp();
+        return Clutter.EVENT_STOP;
     }
 
     _onPress(card, event) {
@@ -269,7 +348,7 @@ export class Board {
 
     _onMotion(event) {
         const gesture = this._gesture;
-        if (!gesture)
+        if (!gesture || gesture.resizing)
             return Clutter.EVENT_PROPAGATE;
         const [x, y] = event.get_coords();
         if (!gesture.lifted) {
@@ -337,7 +416,7 @@ export class Board {
 
     _onRelease(event) {
         const gesture = this._gesture;
-        if (!gesture || event.get_button() !== Clutter.BUTTON_PRIMARY)
+        if (!gesture || gesture.resizing || event.get_button() !== Clutter.BUTTON_PRIMARY)
             return Clutter.EVENT_PROPAGATE;
         this._endGesture(gesture);
         return Clutter.EVENT_STOP;
@@ -361,6 +440,10 @@ export class Board {
             this._showHints(false);
             this._persist();
         }
+        this._catchUp();
+    }
+
+    _catchUp() {
         if (this._reloadPending) {
             this._reloadPending = false;
             this._queueReload();

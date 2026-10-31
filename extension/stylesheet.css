@@ -1,6 +1,5 @@
 /* Dark translucent cards. A single accent colour carries the "next step". */
 .mural-card {
-  padding: 18px 20px 20px 20px;
   border-radius: 14px;
   border: 1px solid rgba(255, 255, 255, 0.08);
   background-color: rgba(12, 8, 16, 0.88);
@@ -9,6 +8,8 @@
   font-family: "Ubuntu Sans", sans-serif;
   font-size: 14px;
 }
+
+.mural-body { padding: 18px 20px 20px 20px; }
 
 .mural-head {
   padding-bottom: 12px;
@@ -65,3 +66,28 @@
   border: 1px solid rgba(255, 74, 110, 0.4);
   background-color: rgba(229, 15, 61, 0.08);
 }
+
+/* A corner mark that reads as "pull here", with a larger area to grab. */
+.mural-grip {
+  width: 26px;
+  height: 26px;
+}
+
+.mural-grip-mark {
+  width: 10px;
+  height: 10px;
+  margin: 6px;
+  border-bottom: 2px solid rgba(236, 232, 240, 0.45);
+}
+
+.mural-grip-mark-right {
+  border-right: 2px solid rgba(236, 232, 240, 0.45);
+  border-radius: 0 0 6px 0;
+}
+
+.mural-grip-mark-left {
+  border-left: 2px solid rgba(236, 232, 240, 0.45);
+  border-radius: 0 0 0 6px;
+}
+
+.mural-grip:hover .mural-grip-mark { border-color: #ff4a6e; }

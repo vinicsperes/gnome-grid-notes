@@ -134,6 +134,11 @@ test('every move of a messy layout stays tidy', () => {
     }
 });
 
+test('resize can move the card as it grows', () => {
+    const out = resize([item('a', 2, 0)], 'a', 4, 4, 8, 0);
+    assert.deepEqual([at(out, 'a').x, at(out, 'a').w], [0, 4]);
+});
+
 const geometry = metrics({x: 0, y: 32, width: 1920, height: 1048},
     {cell: 141, row: 18, gap: 18, margin: 40});
 

@@ -45,13 +45,58 @@ export class Card {
         });
         this.actor.set_cursor_type(Clutter.CursorType.GRAB);
         this.body = new St.BoxLayout({
+            style_class: 'mural-body',
             orientation: Clutter.Orientation.VERTICAL,
             x_expand: true,
             y_expand: true,
             y_align: Clutter.ActorAlign.START,
         });
         this.actor.add_child(this.body);
+
+        this.grips = [this._buildGrip('right'), this._buildGrip('left')];
+        this.actor.connect('notify::hover', () => this._syncControls());
+
         this.render();
+    }
+
+    // Controls stay out of sight until the pointer is over the card.
+    _syncControls() {
+        for (const grip of this.grips) {
+            grip.ease({
+                opacity: this.actor.hover ? 255 : 0,
+                duration: 140,
+                mode: Clutter.AnimationMode.EASE_OUT_QUAD,
+            });
+        }
+    }
+
+    // One on each bottom corner: a card against the screen edge can only grow
+    // by pulling the side away from it.
+    _buildGrip(side) {
+        const align = side === 'right' ? Clutter.ActorAlign.END : Clutter.ActorAlign.START;
+        const grip = new St.Widget({
+            style_class: 'mural-grip',
+            layout_manager: new Clutter.BinLayout(),
+            reactive: true,
+            track_hover: true,
+            opacity: 0,
+            x_expand: true,
+            y_expand: true,
+            x_align: align,
+            y_align: Clutter.ActorAlign.END,
+        });
+        grip.side = side;
+        grip.add_child(new St.Widget({
+            style_class: `mural-grip-mark mural-grip-mark-${side}`,
+            x_expand: true,
+            y_expand: true,
+            x_align: align,
+            y_align: Clutter.ActorAlign.END,
+        }));
+        grip.set_cursor_type(side === 'right'
+            ? Clutter.CursorType.SE_RESIZE : Clutter.CursorType.SW_RESIZE);
+        this.actor.add_child(grip);
+        return grip;
     }
 
     render() {
