@@ -1,0 +1,7 @@
+node_modules/
+*.zip
+*.log
+gschemas.compiled
+.zenith
+.env
+/build/

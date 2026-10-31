@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<schemalist gettext-domain="mural">
+  <schema id="org.gnome.shell.extensions.mural" path="/org/gnome/shell/extensions/mural/">
+    <key name="new-note" type="as">
+      <default><![CDATA[['<Shift><Super>n']]]></default>
+      <summary>Write a new note</summary>
+    </key>
+    <key name="toggle-focus" type="as">
+      <default><![CDATA[['<Shift><Super>m']]]></default>
+      <summary>Bring the notes in front of your windows</summary>
+    </key>
+  </schema>
+</schemalist>
