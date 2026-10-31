@@ -301,6 +301,7 @@ export class Board {
 
     _wire(card) {
         const {actor} = card;
+        card.onDelete = () => this._delete(card);
         actor.connect('button-press-event', (_, event) => this._onPress(card, event));
         actor.connect('motion-event', (_, event) => this._onMotion(event));
         actor.connect('button-release-event', (_, event) => this._onRelease(event));
@@ -386,6 +387,10 @@ export class Board {
 
     _onPress(card, event) {
         if (this._gesture || event.get_button() !== Clutter.BUTTON_PRIMARY)
+            return Clutter.EVENT_PROPAGATE;
+        // A press on the button bubbles up to here, and grabbing the pointer
+        // would keep the button from ever seeing its release.
+        if (global.stage.get_event_actor(event) === card.close)
             return Clutter.EVENT_PROPAGATE;
         if (this._composer) {
             if (card !== this._composer.card)
@@ -662,6 +667,12 @@ export class Board {
         card.file = file;
         card.isNew = false;
         this._cards.set(file, card);
+    }
+
+    _delete(card) {
+        this._store.trash(card.file);
+        this._dropCard(card);
+        this._persist();
     }
 
     _dropCard(card) {

@@ -1,12 +1,15 @@
 // One note on screen: draws its contents and knows how much room they need.
 // Where it sits and how it moves is up to the board.
 import Clutter from 'gi://Clutter';
+import GLib from 'gi://GLib';
 import Graphene from 'gi://Graphene';
 import Pango from 'gi://Pango';
 import St from 'gi://St';
 
 import {daysSince} from './notes.js';
 import {strings} from './strings.js';
+
+const ARMED_MS = 2500;
 
 function wrapped(text, styleClass) {
     const label = new St.Label({text, style_class: styleClass, x_expand: true});
@@ -54,6 +57,19 @@ export class Card {
         this.actor.add_child(this.body);
 
         this.grips = [this._buildGrip('right'), this._buildGrip('left')];
+
+        this.close = new St.Button({
+            style_class: 'mural-close',
+            label: '×',
+            opacity: 0,
+            x_expand: true,
+            y_expand: true,
+            x_align: Clutter.ActorAlign.END,
+            y_align: Clutter.ActorAlign.START,
+        });
+        this.close.set_cursor_type(Clutter.CursorType.POINTER);
+        this.close.connect('clicked', () => this._onClose());
+        this.actor.add_child(this.close);
         this.actor.connect('notify::hover', () => this._syncControls());
 
         this.render();
@@ -61,13 +77,41 @@ export class Card {
 
     // Controls stay out of sight until the pointer is over the card.
     _syncControls() {
-        for (const grip of this.grips) {
-            grip.ease({
+        for (const control of [...this.grips, this.close]) {
+            control.ease({
                 opacity: this.actor.hover ? 255 : 0,
                 duration: 140,
                 mode: Clutter.AnimationMode.EASE_OUT_QUAD,
             });
         }
+        if (!this.actor.hover)
+            this._disarmClose();
+    }
+
+    // Deleting takes two clicks, and a pause or moving away cancels it.
+    _onClose() {
+        if (this._armed) {
+            this._disarmClose();
+            this.onDelete?.();
+            return;
+        }
+        this._armed = true;
+        this.close.label = strings.confirmDelete;
+        this.close.add_style_class_name('mural-close-armed');
+        this._armedId = GLib.timeout_add(GLib.PRIORITY_DEFAULT, ARMED_MS, () => {
+            this._armedId = 0;
+            this._disarmClose();
+            return GLib.SOURCE_REMOVE;
+        });
+    }
+
+    _disarmClose() {
+        if (this._armedId)
+            GLib.source_remove(this._armedId);
+        this._armedId = 0;
+        this._armed = false;
+        this.close.label = '×';
+        this.close.remove_style_class_name('mural-close-armed');
     }
 
     // One on each bottom corner: a card against the screen edge can only grow
@@ -150,8 +194,8 @@ export class Card {
         else
             this.actor.remove_style_class_name('mural-card-editing');
         this.actor.set_cursor_type(editing ? Clutter.CursorType.DEFAULT : Clutter.CursorType.GRAB);
-        for (const grip of this.grips)
-            grip.visible = !editing;
+        for (const control of [...this.grips, this.close])
+            control.visible = !editing;
     }
 
     // Fades in from slightly below, a little late when arriving with others.
@@ -188,6 +232,7 @@ export class Card {
 
     vanish() {
         const {actor} = this;
+        this._disarmClose();
         actor.reactive = false;
         actor.ease({
             opacity: 0,
@@ -201,6 +246,7 @@ export class Card {
     }
 
     destroy() {
+        this._disarmClose();
         this.actor.destroy();
     }
 }

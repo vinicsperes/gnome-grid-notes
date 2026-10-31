@@ -133,3 +133,26 @@
   background-color: rgba(229, 15, 61, 0.08);
   color: #ff4a6e;
 }
+
+.mural-close {
+  min-width: 22px;
+  min-height: 22px;
+  margin: 8px;
+  padding: 0 6px;
+  border-radius: 11px;
+  color: rgba(236, 232, 240, 0.5);
+  font-size: 14px;
+}
+
+.mural-close:hover {
+  background-color: rgba(255, 255, 255, 0.08);
+  color: #f5f2f7;
+}
+
+.mural-close-armed,
+.mural-close-armed:hover {
+  background-color: rgba(229, 15, 61, 0.9);
+  color: #fff;
+  font-size: 12px;
+  font-weight: bold;
+}
