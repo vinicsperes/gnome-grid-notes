@@ -143,6 +143,52 @@ export class Card {
         return height + sideY;
     }
 
+    // Fades in from slightly below, a little late when arriving with others.
+    appear(delay = 0) {
+        const {actor} = this;
+        actor.set({opacity: 0, scale_x: 0.94, scale_y: 0.94, translation_y: 12});
+        actor.ease({
+            opacity: 255,
+            scale_x: 1,
+            scale_y: 1,
+            translation_y: 0,
+            delay,
+            duration: 420,
+            mode: Clutter.AnimationMode.EASE_OUT_BACK,
+        });
+    }
+
+    // A short nudge, to show the contents just changed.
+    pulse() {
+        const {actor} = this;
+        actor.ease({
+            scale_x: 1.025,
+            scale_y: 1.025,
+            duration: 130,
+            mode: Clutter.AnimationMode.EASE_OUT_QUAD,
+            onComplete: () => actor.ease({
+                scale_x: 1,
+                scale_y: 1,
+                duration: 320,
+                mode: Clutter.AnimationMode.EASE_OUT_BACK,
+            }),
+        });
+    }
+
+    vanish() {
+        const {actor} = this;
+        actor.reactive = false;
+        actor.ease({
+            opacity: 0,
+            scale_x: 0.88,
+            scale_y: 0.88,
+            translation_y: -8,
+            duration: 200,
+            mode: Clutter.AnimationMode.EASE_IN_QUAD,
+            onStopped: () => actor.destroy(),
+        });
+    }
+
     destroy() {
         this.actor.destroy();
     }

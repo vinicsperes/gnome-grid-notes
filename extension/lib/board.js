@@ -18,6 +18,7 @@ const INITIAL_COLUMNS = 8;
 const REFRESH_SECONDS = 30 * 60;
 const DRAG_THRESHOLD = 5;
 const MAX_TILT = 3.5;
+const ARRIVAL_STAGGER = 45;
 
 const {EASE_OUT_QUINT, EASE_OUT_QUAD, EASE_OUT_BACK} = Clutter.AnimationMode;
 const MOTION = {
@@ -162,7 +163,7 @@ export class Board {
 
         for (const [file, card] of this._cards) {
             if (!seen.has(file)) {
-                card.destroy();
+                card.vanish();
                 this._cards.delete(file);
                 dirty = true;
             }
@@ -182,11 +183,13 @@ export class Board {
                 card.error = error;
                 card.userRows = note.grid?.h ?? 0;
                 card.render();
+                card.pulse();
                 dirty = true;
             }
         }
         if (dirty)
             this._relayout(fresh);
+        fresh.forEach((card, i) => card.appear(i * ARRIVAL_STAGGER));
     }
 
     // Saved positions first, then anything new takes the next free slot.
