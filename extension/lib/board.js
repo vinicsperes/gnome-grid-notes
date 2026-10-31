@@ -62,13 +62,19 @@ export class Board {
         this._restackedId = global.display.connect('restacked', () => this._syncStack());
         this._mapId = global.window_manager.connect_after('map', () => this._syncStack());
         this._monitorsId = Main.layoutManager.connect('monitors-changed', () => {
+            const {width, height} = global.stage;
+            this._scrim.set_size(width, height);
+            this._dots.set_size(width, height);
             this._dots.queue_repaint();
             this._relayout();
         });
         this._store.onChanged(() => this._queueReload());
         this._clockId = GLib.timeout_add_seconds(GLib.PRIORITY_LOW, REFRESH_SECONDS, () => {
-            for (const card of this._cards.values())
-                card.render();
+            // Redrawing a card being edited would throw away what's being typed.
+            for (const card of this._cards.values()) {
+                if (!card.editing)
+                    card.render();
+            }
             return GLib.SOURCE_CONTINUE;
         });
 
@@ -291,7 +297,7 @@ export class Board {
     _persist() {
         for (const item of this._layout) {
             const card = this._cards.get(item.id);
-            if (card.error)
+            if (card.error || card.isNew)
                 continue;
             const {x, y, w} = item;
             card.note.grid = card.userRows ? {x, y, w, h: card.userRows} : {x, y, w};
@@ -561,8 +567,10 @@ export class Board {
     leaveFocus() {
         if (!this._focus)
             return;
-        if (this._composer)
-            this._composer.finish();
+        // Closing the composer can end the focus by itself.
+        this._composer?.finish();
+        if (!this._focus)
+            return;
         const {grab, keyId} = this._focus;
         this._focus = null;
         this._scrim.disconnect(keyId);

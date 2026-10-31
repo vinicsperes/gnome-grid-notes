@@ -151,10 +151,14 @@ export class Card {
             orientation: Clutter.Orientation.VERTICAL,
             style_class: 'mural-head',
         });
-        head.add_child(wrapped(note.title || this.file, 'mural-title'));
+        // A broken file has no title of its own, but still needs telling apart.
+        const title = note.title || (this.error ? this.file : '');
+        if (title)
+            head.add_child(wrapped(title, 'mural-title'));
         if (note.date)
             head.add_child(wrapped(whenText(note.date), 'mural-date'));
-        this.body.add_child(head);
+        if (title || note.date)
+            this.body.add_child(head);
 
         const items = this.error ? [strings.unreadable(this.error)] : note.items;
         for (const item of items) {

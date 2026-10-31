@@ -1,7 +1,9 @@
 import assert from 'node:assert/strict';
+import {readdirSync} from 'node:fs';
+import {join} from 'node:path';
 import {test} from 'node:test';
 
-import {board, drive, errors, layout, notes, rect, sleep} from './shell.js';
+import {board, drive, errors, evaluate, layout, notes, rect, sleep} from './shell.js';
 
 const KEY = {enter: 'Clutter.KEY_Return', esc: 'Clutter.KEY_Escape', tab: 'Clutter.KEY_Tab', back: 'Clutter.KEY_BackSpace'};
 const tap = key => drive(`await driver.tap(${KEY[key]});`);
@@ -141,6 +143,73 @@ test('notes can still be dragged while in front of the windows', async () => {
     assert.ok(rect('5-website.json').x < 400);
     await tap('esc');
     await sleep(200);
+});
+
+test('the real keyboard shortcuts work, including from in front of the windows', async () => {
+    const chord = key => drive(`await driver.tap(Clutter.KEY_${key}, Clutter.KEY_Super_L, Clutter.KEY_Shift_L);`);
+    await chord('M');
+    await sleep(300);
+    assert.equal(board('b._focus !== null'), true, 'opens');
+    await chord('M');
+    await sleep(300);
+    assert.equal(board('b._focus'), null, 'closes');
+    await chord('N');
+    await sleep(300);
+    assert.equal(board('b._composer !== null'), true, 'new note');
+    await tap('esc');
+    await sleep(400);
+});
+
+test('toggling focus while writing keeps what was typed', async () => {
+    board('b.newNote()');
+    await sleep(300);
+    await type('Kept');
+    board('b.toggleFocus()');
+    await sleep(500);
+    assert.equal(board('b._composer'), null);
+    assert.equal(board('b._focus'), null);
+    assert.equal(notes()['kept.json'].title, 'Kept');
+});
+
+test('turning off in the middle of writing keeps what was typed', async () => {
+    board('b.newNote()');
+    await sleep(300);
+    await type('Rescued');
+    evaluate("Main.extensionManager.lookup('mural@vinicsperes').stateObj.disable(); 0");
+    await sleep(300);
+    assert.equal(notes()['rescued.json'].title, 'Rescued');
+    evaluate("Main.extensionManager.lookup('mural@vinicsperes').stateObj.enable(); 0");
+    await sleep(600);
+    assert.ok(layout()['rescued.json']);
+});
+
+test('deleting another card while writing leaves no stray file', async () => {
+    board('b.newNote()');
+    await sleep(300);
+    await type('Half');
+    const r = rect('3-synth.json');
+    const [x, y] = [r.x + r.width - 18, r.y + 18];
+    await drive(`await driver.click(${x}, ${y}); await driver.wait(100); await driver.click(${x}, ${y});`);
+    await sleep(500);
+    assert.equal(readdirSync(join(process.env.MURAL_RUN, 'data', 'mural')).filter(f => f.startsWith('.')).length, 0);
+    assert.equal(notes()['3-synth.json'], undefined);
+    await tap('esc');
+    await sleep(400);
+    assert.equal(notes()['half.json'].title, 'Half');
+});
+
+test('a note with no title shows just its date up top', async () => {
+    board('b.newNote()');
+    await sleep(300);
+    await tap('enter');
+    await type('just a bullet');
+    await tap('esc');
+    await sleep(400);
+    assert.deepEqual(notes()['note.json'].items, ['just a bullet']);
+    const head = `b._cards.get('note.json').body.get_first_child()`;
+    assert.equal(board(`${head}.style_class`), 'mural-head');
+    assert.equal(board(`${head}.get_n_children()`), 1);
+    assert.equal(board(`${head}.get_first_child().style_class`), 'mural-date');
 });
 
 test('nothing logged an error', () => {
