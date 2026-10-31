@@ -16,7 +16,7 @@ uninstall:
 
 pack: schemas
 	mkdir -p build
-	gnome-extensions pack extension --force --out-dir=build --extra-source=lib --extra-source=schemas/gschemas.compiled
+	gnome-extensions pack extension --force --out-dir=build --extra-source=lib --schema=schemas/org.gnome.shell.extensions.mural.gschema.xml
 
 test:
 	node --test tests/*.test.js
