@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import {test} from 'node:test';
 
 import {
-    daysSince, fileNameFor, isBlank, isoDay, parseNote, serializeNote,
+    daysSince, emptyNote, fileNameFor, isBlank, isoDay, parseNote, withContent, withGrid,
 } from '../extension/lib/notes.js';
 
 test('reads a complete note', () => {
@@ -32,11 +32,20 @@ test('a minimal note gets sensible defaults', () => {
         ['', '', [], '', null]);
 });
 
-test('odd values are coerced instead of breaking the card', () => {
-    const note = parseNote(JSON.stringify({title: 7, items: [1, 'x'], next: 0}));
+test('odd values are shown instead of dropped', () => {
+    const note = parseNote(JSON.stringify({title: 7, items: [1, 'x', {a: 1}], next: 0}));
     assert.equal(note.title, '7');
-    assert.deepEqual(note.items, ['1', 'x']);
-    assert.equal(note.next, '');
+    assert.deepEqual(note.items, ['1', 'x', '{"a":1}']);
+    assert.equal(note.next, '0');
+    assert.deepEqual(parseNote('{"items": "buy milk"}').items, ['buy milk']);
+});
+
+test('field names from Object.prototype are just unknown fields', () => {
+    const text = '{"constructor": "c", "toString": "t", "__proto__": {"title": "x"}, "items": []}';
+    assert.equal(parseNote(text).title, '');
+    const saved = withGrid(text, {x: 1, y: 2, w: 2});
+    assert.equal(JSON.parse(saved).constructor, 'c');
+    assert.equal(JSON.parse(saved).toString, 't');
 });
 
 test('rejects files that are not notes', () => {
@@ -48,26 +57,51 @@ test('rejects files that are not notes', () => {
 test('ignores a grid position that makes no sense', () => {
     for (const grid of [{x: -1, y: 0, w: 2}, {x: 0, y: 0, w: 0}, {x: 'a', y: 0, w: 2}, 'nope'])
         assert.equal(parseNote(JSON.stringify({grid})).grid, null);
+    assert.equal(parseNote('{"grid": {"x": 0, "y": 1e9, "w": 2}}').grid, null);
+    assert.deepEqual(parseNote('{"grid": {"x": 0, "y": 0, "w": 2, "h": 1e9}}').grid,
+        {x: 0, y: 0, w: 2});
     assert.deepEqual(parseNote(JSON.stringify({grid: {x: 0, y: 0, w: 2, h: 0}})).grid,
         {x: 0, y: 0, w: 2});
 });
 
-test('saving keeps fields from other tools', () => {
-    const note = parseNote(JSON.stringify({title: 'a', items: [], color: 'red'}));
-    const saved = JSON.parse(serializeNote(note));
-    assert.equal(saved.color, 'red');
+test('moving a note changes nothing but its position', () => {
+    const original = {titulo: 'a', itens: [{text: 'x', done: true}], next: 0, color: 'red'};
+    const saved = JSON.parse(withGrid(JSON.stringify(original), {x: 1, y: 2, w: 3}));
+    assert.deepEqual(saved, {...original, grid: {x: 1, y: 2, w: 3}});
 });
 
-test('saving writes the current field names', () => {
-    const saved = JSON.parse(serializeNote(parseNote('{"titulo": "a", "itens": ["b"]}')));
-    assert.deepEqual(saved, {title: 'a', items: ['b']});
+test('a note already in place keeps its exact text', () => {
+    const text = '{ "title": "by hand",\n     "grid": {"x": 1, "y": 2, "w": 3} }';
+    assert.equal(withGrid(text, {x: 1, y: 2, w: 3}), text);
 });
 
-test('a note survives a save and reload', () => {
-    const text = serializeNote(parseNote(JSON.stringify({
-        title: 'a', date: '2026-01-02', items: ['b'], next: 'c', grid: {x: 1, y: 2, w: 3},
-    })));
-    assert.equal(serializeNote(parseNote(text)), text);
+test('moving a note whose file is broken throws instead of writing', () => {
+    assert.throws(() => withGrid('{ not json', {x: 0, y: 0, w: 2}));
+});
+
+test('editing writes current field names and keeps other fields', () => {
+    const text = '{"titulo": "a", "itens": ["b"], "color": "red", "grid": {"x": 1, "y": 2, "w": 3}}';
+    const saved = JSON.parse(withContent(text, {title: 'c', date: '', items: ['d'], next: ''}));
+    assert.deepEqual(saved, {title: 'c', items: ['d'], grid: {x: 1, y: 2, w: 3}, color: 'red'});
+});
+
+test('editing can update the position at the same time', () => {
+    const saved = JSON.parse(withContent('{"grid": {"x": 1, "y": 2, "w": 3}}',
+        {title: 'c', date: '', items: [], next: ''}, {x: 4, y: 5, w: 2}));
+    assert.deepEqual(saved.grid, {x: 4, y: 5, w: 2});
+});
+
+test('a new note starts from nothing', () => {
+    const saved = JSON.parse(withContent(null,
+        {title: 'a', date: '2026-01-02', items: ['b'], next: 'c'}, {x: 0, y: 0, w: 2}));
+    assert.deepEqual(saved, {
+        title: 'a', date: '2026-01-02', items: ['b'], next: 'c', grid: {x: 0, y: 0, w: 2},
+    });
+    assert.deepEqual(parseNote(JSON.stringify(saved)).items, ['b']);
+});
+
+test('emptyNote is blank', () => {
+    assert.ok(isBlank(emptyNote()));
 });
 
 test('isBlank ignores whitespace', () => {

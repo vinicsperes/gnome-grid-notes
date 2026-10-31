@@ -63,7 +63,7 @@ export const notes = () => Object.fromEntries(readdirSync(dataDir())
 export const writeNote = (name, value) =>
     writeFileSync(join(dataDir(), name), typeof value === 'string' ? value : JSON.stringify(value));
 
-export const removeNote = name => rmSync(join(dataDir(), name));
+export const removeNote = name => rmSync(join(dataDir(), name), {force: true});
 
 export function errors() {
     const log = readFileSync(join(process.env.MURAL_RUN, 'shell.log'), 'utf8');

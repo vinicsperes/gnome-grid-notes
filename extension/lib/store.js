@@ -3,7 +3,11 @@
 import Gio from 'gi://Gio';
 import GLib from 'gi://GLib';
 
-import {fileNameFor, parseNote, serializeNote} from './notes.js';
+import {emptyNote, fileNameFor, parseNote, withContent, withGrid} from './notes.js';
+
+// Notes are read on the shell's main thread, so a file has to be small enough
+// to do no harm there. Far more text than any card could show.
+const MAX_BYTES = 256 * 1024;
 
 const decoder = new TextDecoder();
 const encoder = new TextEncoder();
@@ -22,19 +26,30 @@ export class NoteStore {
         this._changedId = 0;
     }
 
-    // A file that doesn't parse (say, half written by another program) still
+    _names() {
+        const found = [];
+        let en;
+        try {
+            en = this._dir.enumerate_children('standard::name,standard::type,standard::size',
+                Gio.FileQueryInfoFlags.NONE, null);
+        } catch {
+            return found;
+        }
+        for (let info; (info = en.next_file(null));) {
+            const file = info.get_name();
+            if (file.endsWith('.json') && !file.startsWith('.'))
+                found.push({file, info});
+        }
+        en.close(null);
+        return found;
+    }
+
+    // A file that can't be used (half written by another program, say) still
     // gets a card saying so, and is never overwritten. Each entry also says
     // whether it differs from what was last read or written here, which is how
     // the board tells its own saves from someone else's edits.
     list() {
-        const entries = [];
-        const en = this._dir.enumerate_children('standard::name', Gio.FileQueryInfoFlags.NONE, null);
-        for (let info; (info = en.next_file(null));) {
-            const file = info.get_name();
-            if (file.endsWith('.json') && !file.startsWith('.'))
-                entries.push(this._read(file));
-        }
-        en.close(null);
+        const entries = this._names().map(({file, info}) => this._read(file, info));
         entries.sort((a, b) => a.file.localeCompare(b.file));
         for (const entry of entries)
             entry.changed = this._text.get(entry.file) !== entry.text;
@@ -42,32 +57,92 @@ export class NoteStore {
         return entries;
     }
 
-    _read(file) {
+    _read(file, info) {
         let text = null;
         try {
-            const [, bytes] = this._dir.get_child(file).load_contents(null);
-            text = decoder.decode(bytes);
+            // Reading a pipe would hang the whole desktop.
+            if (info.get_file_type() !== Gio.FileType.REGULAR)
+                throw new Error('not a regular file');
+            if (info.get_size() > MAX_BYTES)
+                throw new Error('too big for a note');
+            text = this._load(file);
             return {file, text, note: parseNote(text), error: null};
         } catch (e) {
-            return {file, text, note: parseNote('{}'), error: e.message};
+            return {file, text, note: emptyNote(), error: e.message};
         }
+    }
+
+    _load(file) {
+        const [, bytes] = this._dir.get_child(file).load_contents(null);
+        return decoder.decode(bytes);
+    }
+
+    _write(file, text) {
+        this._dir.get_child(file).replace_contents(encoder.encode(text), null, false,
+            Gio.FileCreateFlags.NONE, null);
+        this._text.set(file, text);
     }
 
     onChanged(callback) {
         this._changedId = this._monitor.connect('changed', callback);
     }
 
-    save(file, note) {
-        const text = serializeNote(note);
-        if (this._text.get(file) === text)
+    // Reads the file again first: it may have changed since the board last
+    // looked, and a position is no reason to bring back old contents or a file
+    // that was deleted. If it can't be read, the position just isn't saved.
+    saveGrid(file, grid) {
+        let text, updated;
+        try {
+            text = this._load(file);
+            updated = withGrid(text, grid);
+        } catch (e) {
+            if (e instanceof GLib.Error && !e.matches(Gio.IOErrorEnum, Gio.IOErrorEnum.NOT_FOUND))
+                throw e;
             return;
-        this._text.set(file, text);
-        this._dir.get_child(file).replace_contents(encoder.encode(text), null, false,
-            Gio.FileCreateFlags.NONE, null);
+        }
+        if (updated === text)
+            return;
+        // Content the board hasn't seen yet has to still look new to the next
+        // reload, or the card would keep showing the old text.
+        const seen = this._text.get(file) === text;
+        this._write(file, updated);
+        if (!seen)
+            this._text.delete(file);
     }
 
-    newFileName(title) {
-        return fileNameFor(title, [...this._text.keys()]);
+    saveContent(file, content, grid) {
+        let text = null;
+        try {
+            text = this._load(file);
+        } catch (e) {
+            if (!e.matches(Gio.IOErrorEnum, Gio.IOErrorEnum.NOT_FOUND))
+                throw e;
+        }
+        this._write(file, withContent(text, content, grid));
+    }
+
+    // Writes a note under a new name made from its title. Creating the file
+    // fails if the name is taken, so this can't land on top of another note,
+    // even one written a moment ago by something else.
+    create(content, grid) {
+        const text = withContent(null, content, grid);
+        const taken = this._names().map(({file}) => file);
+        for (;;) {
+            const file = fileNameFor(content.title, taken);
+            let stream;
+            try {
+                stream = this._dir.get_child(file).create(Gio.FileCreateFlags.NONE, null);
+            } catch (e) {
+                if (!e.matches(Gio.IOErrorEnum, Gio.IOErrorEnum.EXISTS))
+                    throw e;
+                taken.push(file);
+                continue;
+            }
+            stream.write_all(encoder.encode(text), null);
+            stream.close(null);
+            this._text.set(file, text);
+            return file;
+        }
     }
 
     // To the system trash rather than gone, since a click can be a mistake.

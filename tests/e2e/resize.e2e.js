@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import {test} from 'node:test';
 
-import {board, drive, errors, layout, notes, rect, sleep} from './shell.js';
+import {board, drive, errors, evaluate, layout, notes, rect, sleep} from './shell.js';
 
 const corner = r => [r.x + r.width - 3, r.y + r.height - 3];
 
@@ -65,6 +65,20 @@ test('a card can never get narrower than the minimum', async () => {
     await drive(`await driver.drag(${x}, ${y}, ${x - 280}, ${y});`);
     await sleep(500);
     assert.equal(layout()['7-trip.json'].w, 2);
+});
+
+test('the add button comes back after a resize', async () => {
+    assert.equal(board('b._add.opacity'), 255);
+    assert.equal(board('b._add.reactive'), true);
+});
+
+test('losing room to a dock moves the cards out of its way', async () => {
+    const before = rect('2-thesis.json').x;
+    evaluate(`Main.layoutManager.getWorkAreaForMonitor = () =>
+        ({x: 0, y: 32, width: 1500, height: 1048}); global.display.emit('workareas-changed'); 0`);
+    await sleep(500);
+    assert.ok(rect('2-thesis.json').x < before);
+    evaluate('delete Main.layoutManager.getWorkAreaForMonitor; 0');
 });
 
 test('nothing logged an error', () => {

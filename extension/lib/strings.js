@@ -12,6 +12,7 @@ const STRINGS = {
         itemHint: 'What happened',
         nextHint: 'What comes next',
         confirmDelete: 'delete?',
+        saveFailed: 'Mural could not save a note',
     },
     pt: {
         next: 'PRÓXIMO',
@@ -23,6 +24,7 @@ const STRINGS = {
         itemHint: 'O que rolou',
         nextHint: 'O que vem depois',
         confirmDelete: 'apagar?',
+        saveFailed: 'O Mural não conseguiu salvar uma nota',
     },
 };
 

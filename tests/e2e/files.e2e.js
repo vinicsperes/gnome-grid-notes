@@ -1,7 +1,17 @@
 import assert from 'node:assert/strict';
+import {execFileSync} from 'node:child_process';
 import {test} from 'node:test';
 
-import {board, errors, layout, notes, rect, removeNote, sleep, writeNote} from './shell.js';
+import {readFileSync} from 'node:fs';
+import {join} from 'node:path';
+
+import {
+    board, drive, errors, evaluate, layout, notes, rect, removeNote, sleep, writeNote,
+} from './shell.js';
+
+const raw = name => readFileSync(join(process.env.MURAL_RUN, 'data', 'mural', name), 'utf8');
+const press = (x, y) => drive(`driver.move(${x}, ${y}); await driver.wait(80); driver.press(); await driver.wait(40);
+    for (let i = 1; i <= 8; i++) { driver.move(${x} + i * 3, ${y}); await driver.wait(16); }`);
 
 test('a new file becomes a card without any action', async () => {
     writeNote('8-new.json', {title: 'New', items: ['from a script']});
@@ -49,6 +59,92 @@ test('a saved position survives being read back', async () => {
     writeNote('8-placed.json', {title: 'Placed', items: [], grid: {x: 8, y: 0, w: 2}});
     await sleep(900);
     assert.deepEqual([layout()['8-placed.json'].x, layout()['8-placed.json'].y], [8, 0]);
+});
+
+test('a file changed during a drag keeps those changes', async () => {
+    const r = rect('2-thesis.json');
+    await press(r.x + 150, r.y + 20);
+    writeNote('3-synth.json', {title: 'Edited during the drag', items: ['new']});
+    await sleep(300);
+    const s = rect('5-website.json');
+    await drive(`driver.move(${s.x + 150}, ${s.y + 20}); await driver.wait(150); driver.release();`);
+    await sleep(800);
+    assert.equal(notes()['3-synth.json'].title, 'Edited during the drag');
+    assert.equal(board(`b._cards.get('3-synth.json').note.title`), 'Edited during the drag');
+});
+
+test('a file deleted during a drag stays deleted', async () => {
+    const r = rect('2-thesis.json');
+    await press(r.x + 150, r.y + 20);
+    removeNote('7-trip.json');
+    await sleep(300);
+    const s = rect('4-studio.json');
+    await drive(`driver.move(${s.x + 150}, ${s.y + 20}); await driver.wait(150); driver.release();`);
+    await sleep(800);
+    assert.equal(notes()['7-trip.json'], undefined);
+    assert.equal(layout()['7-trip.json'], undefined);
+});
+
+test('a hand formatted file is left alone until its card moves', async () => {
+    const text = '{ "title": "by hand",\n    "items": ["kept", "as is"], "color": "red" }\n';
+    writeNote('by-hand.json', text);
+    await sleep(900);
+    const r = rect('1-launch.json');
+    await drive(`await driver.drag(${r.x + 150}, ${r.y + 20}, ${r.x + 150 + 3}, ${r.y + 20 + 3});`);
+    await sleep(600);
+    assert.equal(raw('by-hand.json'), text);
+});
+
+test('moving a card never rewrites the contents of its file', async () => {
+    writeNote('odd.json', {itens: [{text: 'x', done: true}], other: 1});
+    await sleep(900);
+    const r = rect('odd.json');
+    await drive(`await driver.drag(${r.x + 150}, ${r.y + 20}, 300, 100);`);
+    await sleep(600);
+    const saved = notes()['odd.json'];
+    assert.deepEqual(saved.itens, [{text: 'x', done: true}]);
+    assert.equal(saved.other, 1);
+    assert.equal(typeof saved.grid.x, 'number');
+});
+
+test('things that are not note files are safely refused', async () => {
+    execFileSync('mkfifo', [join(process.env.MURAL_RUN, 'data', 'mural', 'pipe.json')]);
+    writeNote('huge.json', JSON.stringify({title: 'x'.repeat(300 * 1024)}));
+    await sleep(900);
+    assert.equal(board(`b._cards.get('pipe.json').error !== null`), true);
+    assert.equal(board(`b._cards.get('huge.json').error !== null`), true);
+    removeNote('pipe.json');
+    removeNote('huge.json');
+    await sleep(600);
+});
+
+test('a card restarted while animating ends up fully visible', async () => {
+    writeNote('fresh.json', {title: 'Fresh', items: []});
+    await sleep(320);
+    const r = rect('fresh.json');
+    await drive(`await driver.drag(${r.x + 100}, ${r.y + 20}, ${r.x + 100 + 8}, ${r.y + 20});`);
+    await sleep(700);
+    assert.equal(board(`b._cards.get('fresh.json').actor.opacity`), 255);
+    assert.equal(board(`b._cards.get('fresh.json').actor.translation_y`), 0);
+});
+
+test('a saved position with a silly height is ignored', async () => {
+    writeNote('tall.json', {title: 'Tall', items: [], grid: {x: 0, y: 0, w: 2, h: 999999}});
+    await sleep(900);
+    assert.ok(layout()['tall.json'].h < 100);
+});
+
+test('an empty board still offers a way to start', async () => {
+    for (const name of Object.keys(notes()))
+        removeNote(name);
+    await sleep(800);
+    const state = "Main.extensionManager.lookup('mural@vinicsperes').stateObj";
+    evaluate(`${state}.disable(); ${state}.enable(); 0`);
+    await sleep(500);
+    const add = board('(a => ({x: a.x, y: a.y, w: a.width, o: a.opacity}))(b._add)');
+    assert.equal(add.w, 300);
+    assert.ok(add.y >= 72, 'clear of the top panel');
+    assert.equal(add.o, 255);
 });
 
 test('nothing logged an error', () => {

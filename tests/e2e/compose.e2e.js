@@ -1,9 +1,9 @@
 import assert from 'node:assert/strict';
-import {readdirSync} from 'node:fs';
+import {chmodSync, readdirSync} from 'node:fs';
 import {join} from 'node:path';
 import {test} from 'node:test';
 
-import {board, drive, errors, evaluate, layout, notes, rect, sleep} from './shell.js';
+import {board, drive, errors, evaluate, layout, notes, rect, sleep, writeNote} from './shell.js';
 
 const KEY = {enter: 'Clutter.KEY_Return', esc: 'Clutter.KEY_Escape', tab: 'Clutter.KEY_Tab', back: 'Clutter.KEY_BackSpace'};
 const tap = key => drive(`await driver.tap(${KEY[key]});`);
@@ -210,6 +210,75 @@ test('a note with no title shows just its date up top', async () => {
     assert.equal(board(`${head}.style_class`), 'mural-head');
     assert.equal(board(`${head}.get_n_children()`), 1);
     assert.equal(board(`${head}.get_first_child().style_class`), 'mural-date');
+});
+
+test('a new note never lands on a file created while writing it', async () => {
+    board('b.newNote()');
+    await sleep(300);
+    await type('Groceries');
+    writeNote('groceries.json', {title: 'Groceries from a script', items: ['milk']});
+    await sleep(300);
+    await tap('esc');
+    await sleep(500);
+    assert.equal(notes()['groceries.json'].title, 'Groceries from a script');
+    assert.equal(notes()['groceries-2.json'].title, 'Groceries');
+});
+
+test('escape still works after editing from in front of the windows', async () => {
+    board('b.toggleFocus()');
+    await sleep(300);
+    const r = rect('2-thesis.json');
+    await drive(`await driver.click(${r.x + 150}, ${r.y + 20}, 2);`);
+    await sleep(300);
+    assert.equal(board('b._composer !== null'), true);
+    await tap('esc');
+    await sleep(300);
+    assert.equal(board('b._composer'), null);
+    assert.equal(board('b._focus !== null'), true, 'still in front');
+    await tap('esc');
+    await sleep(300);
+    assert.equal(board('b._focus'), null);
+});
+
+test('opening and closing a messy note does not count as an edit', async () => {
+    writeNote('messy.json', {title: 'Messy ', date: '2026-01-02', items: ['a', '']});
+    await sleep(900);
+    const r = rect('messy.json');
+    await drive(`await driver.click(${r.x + 150}, ${r.y + 20}, 2);`);
+    await sleep(300);
+    await tap('esc');
+    await sleep(400);
+    assert.equal(notes()['messy.json'].date, '2026-01-02');
+});
+
+test('clearing out an existing note leaves it as it was', async () => {
+    writeNote('clear.json', {title: 'x', date: '2026-01-02', items: []});
+    await sleep(900);
+    const r = rect('clear.json');
+    await drive(`await driver.click(${r.x + 150}, ${r.y + 20}, 2);`);
+    await sleep(300);
+    await tap('back');
+    await tap('esc');
+    await sleep(400);
+    assert.equal(notes()['clear.json'].title, 'x');
+    assert.equal(notes()['clear.json'].date, '2026-01-02');
+});
+
+test('a failed save tells you and still gives the desktop back', async () => {
+    const dir = join(process.env.MURAL_RUN, 'data', 'mural');
+    const r = rect('clear.json');
+    await drive(`await driver.click(${r.x + 150}, ${r.y + 20}, 2);`);
+    await sleep(300);
+    await type('more');
+    chmodSync(dir, 0o555);
+    chmodSync(join(dir, 'clear.json'), 0o444);
+    await tap('esc');
+    await sleep(500);
+    chmodSync(dir, 0o755);
+    chmodSync(join(dir, 'clear.json'), 0o644);
+    assert.equal(board('b._composer'), null);
+    assert.equal(board('b._focus'), null);
+    assert.equal(board('global.stage.get_grab_actor() === null'), true);
 });
 
 test('nothing logged an error', () => {

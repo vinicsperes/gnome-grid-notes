@@ -4,61 +4,103 @@
 //
 //   {"title": "...", "date": "2026-10-29", "items": ["..."], "next": "..."}
 //
-// Fields this code doesn't know about are kept when a note is saved, so other
-// tools can add their own.
-
-const KNOWN = ['title', 'date', 'items', 'next', 'grid'];
+// Saving always starts from the text on disk and changes only the fields being
+// saved, so hand edits, unusual values and fields from other tools all survive.
 
 // Portuguese field names from the first version of this project's file format.
-const LEGACY = {titulo: 'title', data: 'date', itens: 'items', proximo: 'next'};
+const LEGACY = new Map([
+    ['titulo', 'title'],
+    ['data', 'date'],
+    ['itens', 'items'],
+    ['proximo', 'next'],
+]);
 
-function renamed(raw) {
-    const out = {};
-    for (const [key, value] of Object.entries(raw))
-        out[LEGACY[key] ?? key] = value;
-    return out;
+const CONTENT = ['title', 'date', 'items', 'next'];
+
+// No real grid comes near this, and a card a million rows tall would only hurt.
+const MAX_CELLS = 1000;
+
+const inRange = (n, min) => Number.isInteger(n) && n >= min && n <= MAX_CELLS;
+
+function parseObject(text) {
+    const raw = JSON.parse(text);
+    if (!raw || typeof raw !== 'object' || Array.isArray(raw))
+        throw new Error('a note must be a JSON object');
+    return raw;
+}
+
+function field(raw, name) {
+    for (const [legacy, current] of LEGACY) {
+        if (current === name && Object.hasOwn(raw, legacy) && !Object.hasOwn(raw, name))
+            return raw[legacy];
+    }
+    return Object.hasOwn(raw, name) ? raw[name] : undefined;
+}
+
+// Unusual values are shown as they are rather than dropped.
+function asText(value) {
+    if (value === undefined || value === null)
+        return '';
+    return typeof value === 'object' ? JSON.stringify(value) : String(value);
+}
+
+function asItems(value) {
+    if (value === undefined || value === null)
+        return [];
+    return (Array.isArray(value) ? value : [value]).map(asText);
 }
 
 function validGrid(grid) {
     if (!grid || typeof grid !== 'object')
         return null;
     const {x, y, w, h} = grid;
-    if (![x, y, w].every(Number.isInteger) || w < 1 || x < 0 || y < 0)
+    if (!inRange(x, 0) || !inRange(y, 0) || !inRange(w, 1))
         return null;
-    return Number.isInteger(h) && h > 0 ? {x, y, w, h} : {x, y, w};
+    return inRange(h, 1) ? {x, y, w, h} : {x, y, w};
 }
 
 export function parseNote(text) {
-    const raw = JSON.parse(text);
-    if (!raw || typeof raw !== 'object' || Array.isArray(raw))
-        throw new Error('a note must be a JSON object');
-    const {title, date, items, next, grid, ...extra} = renamed(raw);
+    const raw = parseObject(text);
     return {
-        title: title === undefined || title === null ? '' : String(title),
-        date: date ? String(date) : '',
-        items: Array.isArray(items) ? items.map(String) : [],
-        next: next ? String(next) : '',
-        grid: validGrid(grid),
-        extra,
+        title: asText(field(raw, 'title')),
+        date: asText(field(raw, 'date')),
+        items: asItems(field(raw, 'items')),
+        next: asText(field(raw, 'next')),
+        grid: validGrid(field(raw, 'grid')),
     };
 }
 
-export function serializeNote(note) {
-    const out = {};
-    if (note.title)
-        out.title = note.title;
-    if (note.date)
-        out.date = note.date;
-    out.items = note.items ?? [];
-    if (note.next)
-        out.next = note.next;
-    if (note.grid)
-        out.grid = note.grid;
-    for (const [key, value] of Object.entries(note.extra ?? {})) {
-        if (!KNOWN.includes(key))
-            out[key] = value;
+const render = raw => `${JSON.stringify(raw, null, 2)}\n`;
+
+export const emptyNote = () => parseNote('{}');
+
+// The note's text with a new position, or the same text if it's already there.
+// Everything else in the file, formatting aside, stays exactly as it was.
+export function withGrid(text, grid) {
+    const raw = parseObject(text);
+    if (JSON.stringify(validGrid(field(raw, 'grid'))) === JSON.stringify(grid))
+        return text;
+    return render({...raw, grid});
+}
+
+// The note's text with new contents. Starts from `text` when the file exists,
+// so fields from other tools are kept.
+export function withContent(text, {title, date, items, next}, grid = null) {
+    const raw = text === null ? {} : parseObject(text);
+    const others = {};
+    for (const [key, value] of Object.entries(raw)) {
+        if (!LEGACY.has(key) && !CONTENT.includes(key) && key !== 'grid')
+            others[key] = value;
     }
-    return `${JSON.stringify(out, null, 2)}\n`;
+    const place = grid ?? validGrid(field(raw, 'grid'));
+    return render({
+        ...(title ? {title} : {}),
+        ...(date ? {date} : {}),
+        items,
+        ...(next ? {next} : {}),
+        ...(place ? {grid: place} : {}),
+        ...others,
+    });
 }
 
 export function isBlank(note) {

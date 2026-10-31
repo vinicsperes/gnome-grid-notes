@@ -11,7 +11,8 @@ import * as Main from 'resource:///org/gnome/shell/ui/main.js';
 import {Card} from './card.js';
 import {Composer} from './composer.js';
 import {compact, metrics, move, place, resize} from './grid.js';
-import {isBlank, isoDay, parseNote} from './notes.js';
+import {emptyNote, isBlank, isoDay} from './notes.js';
+import {strings} from './strings.js';
 
 const SIZES = {cell: 141, row: 18, gap: 18, margin: 40};
 const DEFAULT_WIDTH = 2;
@@ -61,13 +62,9 @@ export class Board {
 
         this._restackedId = global.display.connect('restacked', () => this._syncStack());
         this._mapId = global.window_manager.connect_after('map', () => this._syncStack());
-        this._monitorsId = Main.layoutManager.connect('monitors-changed', () => {
-            const {width, height} = global.stage;
-            this._scrim.set_size(width, height);
-            this._dots.set_size(width, height);
-            this._dots.queue_repaint();
-            this._relayout();
-        });
+        this._monitorsId = Main.layoutManager.connect('monitors-changed', () => this._onScreenChanged());
+        // A dock appearing or going away changes the room without any monitor changing.
+        this._workareasId = global.display.connect('workareas-changed', () => this._onScreenChanged());
         this._store.onChanged(() => this._queueReload());
         this._clockId = GLib.timeout_add_seconds(GLib.PRIORITY_LOW, REFRESH_SECONDS, () => {
             // Redrawing a card being edited would throw away what's being typed.
@@ -80,6 +77,17 @@ export class Board {
 
         this._syncStack();
         this._reload();
+    }
+
+    _onScreenChanged() {
+        const {width, height} = global.stage;
+        this._scrim.set_size(width, height);
+        this._dots.set_size(width, height);
+        this._dots.queue_repaint();
+        if (this._gesture || this._composer)
+            this._relayoutPending = true;
+        else
+            this._relayout();
     }
 
     // Directly above whatever acts as the desktop, and below every real window.
@@ -131,7 +139,14 @@ export class Board {
     _syncAddButton(grid) {
         const slot = this._addSlot(grid);
         const rect = this._rectOf({...slot, h: ADD_ROWS}, grid);
-        this._add.ease({...rect, ...MOTION.reflow});
+        // The very first time it has nowhere to slide in from.
+        if (this._addPlaced) {
+            this._add.ease({...rect, ...MOTION.reflow});
+        } else {
+            this._add.set_position(rect.x, rect.y);
+            this._add.set_size(rect.width, rect.height);
+            this._addPlaced = true;
+        }
         this._add.reactive = !this._gesture && !this._composer;
         this._add.sync_hover();
         this._add.ease({opacity: this._gesture || this._composer ? 0 : 255, ...MOTION.fade});
@@ -219,7 +234,8 @@ export class Board {
         }
         const entries = this._store.list();
         const seen = new Set(entries.map(e => e.file));
-        let dirty = false;
+        // An empty board still has to place the add button.
+        let dirty = this._cards.size === 0;
 
         for (const [file, card] of this._cards) {
             if (!seen.has(file)) {
@@ -293,15 +309,34 @@ export class Board {
         this._syncAddButton(grid);
     }
 
-    // Only cards that actually moved get written.
+    _gridOf(card, item) {
+        const {x, y, w} = item;
+        return card.userRows ? {x, y, w, h: card.userRows} : {x, y, w};
+    }
+
+    // Saving must never get in the way of getting back to the desktop.
+    _safely(save) {
+        try {
+            save();
+            return true;
+        } catch (e) {
+            Main.notifyError(strings.saveFailed, e.message);
+            return false;
+        }
+    }
+
+    // Only cards that actually moved touch the disk, and only their position:
+    // the contents in memory may be out of date while a reload is waiting.
     _persist() {
         for (const item of this._layout) {
             const card = this._cards.get(item.id);
             if (card.error || card.isNew)
                 continue;
-            const {x, y, w} = item;
-            card.note.grid = card.userRows ? {x, y, w, h: card.userRows} : {x, y, w};
-            this._store.save(card.file, card.note);
+            const grid = this._gridOf(card, item);
+            if (JSON.stringify(grid) === JSON.stringify(card.note.grid))
+                continue;
+            card.note.grid = grid;
+            this._safely(() => this._store.saveGrid(card.file, grid));
         }
     }
 
@@ -324,7 +359,7 @@ export class Board {
             return Clutter.EVENT_PROPAGATE;
         const [x, y] = event.get_coords();
         const {actor} = card;
-        actor.remove_all_transitions();
+        card.settle();
         this._gesture = {
             card,
             resizing: true,
@@ -387,6 +422,7 @@ export class Board {
             onComplete: () => this._dots.hide(),
         });
         this._persist();
+        this._syncAddButton(this._metrics());
         this._catchUp();
         return Clutter.EVENT_STOP;
     }
@@ -443,7 +479,7 @@ export class Board {
         const {card} = gesture;
         const {actor} = card;
         const grid = this._metrics();
-        actor.remove_all_transitions();
+        card.settle();
         actor.add_style_class_name('mural-card-lifted');
         actor.set_cursor_type(Clutter.CursorType.GRABBING);
         this.layer.set_child_above_sibling(actor, null);
@@ -599,7 +635,7 @@ export class Board {
         this.enterFocus();
         const grid = this._metrics();
         const file = `.new-${GLib.get_monotonic_time()}`;
-        const card = new Card(file, parseNote('{}'));
+        const card = new Card(file, emptyNote());
         this._wire(card);
         this.layer.add_child(card.actor);
         this._cards.set(file, card);
@@ -625,7 +661,7 @@ export class Board {
         this.layer.set_child_above_sibling(card.actor, null);
         this._composer = new Composer(card, {
             onGrow: () => this._fit(card),
-            onFinish: values => this._closeComposer(values, keepFocus),
+            onFinish: (values, changed) => this._closeComposer(values, changed, keepFocus),
         });
         this._composer.focus();
         this._fit(card);
@@ -640,45 +676,65 @@ export class Board {
         this._applyLayout(grid);
     }
 
-    _closeComposer(values, keepFocus) {
+    _closeComposer(values, changed, keepFocus) {
         const {card} = this._composer;
-        const {note} = card;
         this._composer = null;
         card.setEditing(false);
+        const blank = isBlank(values);
 
-        const changed = values.title !== note.title || values.next !== note.next ||
-            values.items.join('\n') !== note.items.join('\n');
-        if (changed)
-            Object.assign(note, values, {date: isoDay(new Date())});
-        if (card.isNew && isBlank(note)) {
+        if (card.isNew && blank) {
             this._dropCard(card);
         } else {
-            if (card.isNew)
-                this._adopt(card);
+            // Clearing out an existing note isn't how notes get deleted, so
+            // that leaves it as it was.
+            const save = changed && !blank;
+            if (save)
+                Object.assign(card.note, values, {date: isoDay(new Date())});
             card.render();
             this._fit(card);
-            if (changed) {
-                this._persist();
-                card.pulse();
-            }
+            if (card.isNew)
+                this._saveNew(card);
+            else if (save)
+                this._saveEdit(card);
+            this._persist();
         }
-        if (!keepFocus)
+
+        if (keepFocus)
+            this._scrim.grab_key_focus();
+        else
             this.leaveFocus();
         this._catchUp();
     }
 
+    _saveEdit(card) {
+        const item = this._layout.find(i => i.id === card.file);
+        const grid = this._gridOf(card, item);
+        card.note.grid = grid;
+        if (this._safely(() => this._store.saveContent(card.file, card.note, grid)))
+            card.pulse();
+    }
+
     // Gets its real file name only now that it has a title to name it after.
-    _adopt(card) {
-        const file = this._store.newFileName(card.note.title);
+    _saveNew(card) {
+        const item = this._layout.find(i => i.id === card.file);
+        const grid = this._gridOf(card, item);
+        card.note.grid = grid;
+        let file;
+        if (!this._safely(() => (file = this._store.create(card.note, grid)))) {
+            this._dropCard(card);
+            return;
+        }
         this._cards.delete(card.file);
         this._layout = this._layout.map(i => (i.id === card.file ? {...i, id: file} : i));
         card.file = file;
         card.isNew = false;
         this._cards.set(file, card);
+        card.pulse();
     }
 
     _delete(card) {
-        this._store.trash(card.file);
+        if (!this._safely(() => this._store.trash(card.file)))
+            return;
         this._dropCard(card);
         this._persist();
     }
@@ -692,6 +748,10 @@ export class Board {
     }
 
     _catchUp() {
+        if (this._relayoutPending) {
+            this._relayoutPending = false;
+            this._relayout();
+        }
         if (this._reloadPending) {
             this._reloadPending = false;
             this._queueReload();
@@ -711,7 +771,10 @@ export class Board {
         GLib.source_remove(this._clockId);
         global.display.disconnect(this._restackedId);
         global.window_manager.disconnect(this._mapId);
+        global.display.disconnect(this._workareasId);
         Main.layoutManager.disconnect(this._monitorsId);
+        for (const card of this._cards.values())
+            card.destroy();
         this.layer.destroy();
         this._cards.clear();
         this.layer = this._store = null;

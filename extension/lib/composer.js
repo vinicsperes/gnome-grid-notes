@@ -59,6 +59,13 @@ export class Composer {
             this._addRow(item);
         if (note.next)
             this._showNext(note.next);
+        this._initial = JSON.stringify(this.values());
+    }
+
+    // Against what was on screen when writing started, since values() tidies
+    // up whitespace and blank lines that may have been in the file.
+    hasChanged() {
+        return JSON.stringify(this.values()) !== this._initial;
     }
 
     focus() {
@@ -203,6 +210,6 @@ export class Composer {
         if (this._finished)
             return;
         this._finished = true;
-        this._onFinish(this.values());
+        this._onFinish(this.values(), this.hasChanged());
     }
 }

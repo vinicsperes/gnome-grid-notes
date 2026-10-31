@@ -202,6 +202,14 @@ export class Card {
             control.visible = !editing;
     }
 
+    // Stops any motion and takes the resting pose, so an interrupted animation
+    // can't leave the card half faded or off to one side.
+    settle() {
+        const {actor} = this;
+        actor.remove_all_transitions();
+        actor.set({opacity: 255, translation_y: 0, scale_x: 1, scale_y: 1, rotation_angle_z: 0});
+    }
+
     // Fades in from slightly below, a little late when arriving with others.
     appear(delay = 0) {
         const {actor} = this;
