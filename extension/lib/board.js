@@ -148,7 +148,12 @@ export class Board {
             this._addPlaced = true;
         }
         this._add.reactive = !this._gesture && !this._composer;
-        this._add.sync_hover();
+        // Clutter only updates hover when the pointer moves, and here it's the
+        // button that moved. Checked against where it's going to end up.
+        const [px, py] = global.get_pointer();
+        this._add.hover = this._add.reactive &&
+            px >= rect.x && px < rect.x + rect.width &&
+            py >= rect.y && py < rect.y + rect.height;
         this._add.ease({opacity: this._gesture || this._composer ? 0 : 255, ...MOTION.fade});
     }
 

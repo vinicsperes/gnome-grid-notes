@@ -281,6 +281,17 @@ test('a failed save tells you and still gives the desktop back', async () => {
     assert.equal(board('global.stage.get_grab_actor() === null'), true);
 });
 
+test('the add button does not stay lit once it has moved away', async () => {
+    const r = board('(a => ({x: a.x, y: a.y}))(b._add)');
+    await drive(`driver.move(${r.x + 150}, ${r.y + 20}); await driver.wait(100); await driver.click(${r.x + 150}, ${r.y + 20});`);
+    await sleep(300);
+    await type('Moved');
+    await tap('esc');
+    await sleep(500);
+    assert.equal(board('b._add.hover'), false);
+    assert.equal(board('b._add.reactive'), true);
+});
+
 test('nothing logged an error', () => {
     assert.deepEqual(errors(), []);
 });
