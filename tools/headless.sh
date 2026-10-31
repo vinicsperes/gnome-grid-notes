@@ -22,9 +22,11 @@ done
 run="$(mktemp -d "${TMPDIR:-/tmp}/mural-run.XXXXXX")"
 chmod 700 "$run"
 cleanup() {
-    # The document portal leaves a FUSE mount in the runtime folder.
-    fusermount3 -uz "$run/runtime/doc" 2>/dev/null || true
-    rm -rf "$run"
+    # The document portal and gvfs leave FUSE mounts in the runtime folder.
+    for mount in "$run/runtime/doc" "$run/runtime/gvfs"; do
+        fusermount3 -uz "$mount" 2>/dev/null || true
+    done
+    rm -rf "$run" 2>/dev/null || { sleep 1; rm -rf "$run"; }
 }
 trap cleanup EXIT
 mkdir -p "$run/data/gnome-shell/extensions" "$run/config" "$run/cache" "$run/runtime" "$run/data/mural" "$run/home"
