@@ -21,7 +21,13 @@ done
 
 run="$(mktemp -d "${TMPDIR:-/tmp}/mural-run.XXXXXX")"
 chmod 700 "$run"
-mkdir -p "$run/data/gnome-shell/extensions" "$run/config" "$run/cache" "$run/runtime" "$run/data/mural"
+cleanup() {
+    # The document portal leaves a FUSE mount in the runtime folder.
+    fusermount3 -uz "$run/runtime/doc" 2>/dev/null || true
+    rm -rf "$run"
+}
+trap cleanup EXIT
+mkdir -p "$run/data/gnome-shell/extensions" "$run/config" "$run/cache" "$run/runtime" "$run/data/mural" "$run/home"
 chmod 700 "$run/runtime"
 glib-compile-schemas "$root/extension/schemas"
 ln -s "$root/extension" "$run/data/gnome-shell/extensions/mural@vinicsperes"
@@ -29,13 +35,14 @@ ln -s "$root/tools/driver@mural" "$run/data/gnome-shell/extensions/driver@mural"
 [[ -n $seed ]] && cp "$seed"/*.json "$run/data/mural/"
 
 export MURAL_RUN="$run" MURAL_ROOT="$root"
+export HOME="$run/home"
 export XDG_DATA_HOME="$run/data" XDG_CONFIG_HOME="$run/config" XDG_CACHE_HOME="$run/cache"
 export XDG_RUNTIME_DIR="$run/runtime"
 export XDG_SESSION_TYPE=wayland
 unset DISPLAY WAYLAND_DISPLAY DBUS_SESSION_BUS_ADDRESS
 
 exec 3>&2
-exec dbus-run-session -- bash -c '
+dbus-run-session -- bash -c '
     set -euo pipefail
     exec 2>&3
     gsettings set org.gnome.shell disable-user-extensions false

@@ -14,6 +14,11 @@ const wait = ms => new Promise(resolve => GLib.timeout_add(GLib.PRIORITY_DEFAULT
 
 export default class Driver extends Extension {
     enable() {
+        // Unsafe mode lets any program on the session bus run code in the
+        // compositor. Fine in a throwaway shell, dangerous in a real session,
+        // so this does nothing unless tools/headless.sh started it.
+        if (!GLib.getenv('MURAL_RUN'))
+            return;
         global.context.unsafe_mode = true;
         globalThis.Clutter = Clutter;
         globalThis.Main = Main;
@@ -74,6 +79,9 @@ export default class Driver extends Extension {
     }
 
     disable() {
+        if (!globalThis.driver)
+            return;
+        global.context.unsafe_mode = false;
         delete globalThis.driver;
         delete globalThis.Clutter;
         delete globalThis.Main;
