@@ -5,6 +5,7 @@ import Clutter from 'gi://Clutter';
 import GLib from 'gi://GLib';
 
 import {Extension} from 'resource:///org/gnome/shell/extensions/extension.js';
+import * as Main from 'resource:///org/gnome/shell/ui/main.js';
 
 const wait = ms => new Promise(resolve => GLib.timeout_add(GLib.PRIORITY_DEFAULT, ms, () => {
     resolve();
@@ -15,6 +16,9 @@ export default class Driver extends Extension {
     enable() {
         global.context.unsafe_mode = true;
         globalThis.Clutter = Clutter;
+        globalThis.Main = Main;
+        // Turning on unsafe mode raises a banner right over the top of the board.
+        Main.messageTray.bannerBlocked = true;
         const seat = Clutter.get_default_backend().get_default_seat();
         const pointer = seat.create_virtual_device(Clutter.InputDeviceType.POINTER_DEVICE);
         const keyboard = seat.create_virtual_device(Clutter.InputDeviceType.KEYBOARD_DEVICE);
@@ -72,5 +76,6 @@ export default class Driver extends Extension {
     disable() {
         delete globalThis.driver;
         delete globalThis.Clutter;
+        delete globalThis.Main;
     }
 }

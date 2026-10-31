@@ -1,7 +1,7 @@
 UUID := mural@vinicsperes
 EXT_DIR := $(or $(XDG_DATA_HOME),$(HOME)/.local/share)/gnome-shell/extensions/$(UUID)
 
-.PHONY: schemas install uninstall pack test
+.PHONY: schemas install uninstall pack test e2e
 
 schemas:
 	glib-compile-schemas extension/schemas
@@ -20,3 +20,6 @@ pack: schemas
 
 test:
 	node --test tests/*.test.js
+
+e2e:
+	tests/e2e/run.sh
