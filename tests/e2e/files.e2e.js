@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import {execFileSync} from 'node:child_process';
 import {test} from 'node:test';
 
-import {readFileSync} from 'node:fs';
+import {readFileSync, writeFileSync} from 'node:fs';
 import {join} from 'node:path';
 
 import {
@@ -116,6 +116,56 @@ test('things that are not note files are safely refused', async () => {
     removeNote('pipe.json');
     removeNote('huge.json');
     await sleep(600);
+});
+
+test('a file that is not valid text is refused and left untouched', async () => {
+    const dir = join(process.env.MURAL_RUN, 'data', 'mural');
+    const bytes = Buffer.from('{"title": "Ol\xe1", "items": []}', 'latin1');
+    writeFileSync(join(dir, 'latin1.json'), bytes);
+    await sleep(900);
+    assert.equal(board(`b._cards.get('latin1.json').error !== null`), true);
+    const r = rect('1-launch.json');
+    await drive(`await driver.drag(${r.x + 150}, ${r.y + 20}, 300, 100);`);
+    await sleep(600);
+    assert.deepEqual(readFileSync(join(dir, 'latin1.json')), bytes);
+    removeNote('latin1.json');
+    await sleep(500);
+});
+
+test('a card whose file breaks for a moment stays where it was', async () => {
+    const before = layout()['1-launch.json'];
+    const good = readFileSync(join(process.env.MURAL_RUN, 'data', 'mural', '1-launch.json'), 'utf8');
+    writeNote('1-launch.json', '{ half written');
+    await sleep(700);
+    assert.equal(board(`b._cards.get('1-launch.json').error !== null`), true);
+    assert.deepEqual([layout()['1-launch.json'].x, layout()['1-launch.json'].y], [before.x, before.y]);
+
+    const r = rect('1-launch.json');
+    await drive(`await driver.drag(${r.x + 100}, ${r.y + 20}, 800, 500);`);
+    await sleep(500);
+    assert.equal(rect('1-launch.json').x, r.x, 'cannot be dragged while broken');
+
+    writeNote('1-launch.json', good);
+    await sleep(700);
+    assert.equal(board(`b._cards.get('1-launch.json').error`), null);
+});
+
+test('a small screen does not lose the arrangement for the big one', async () => {
+    writeNote('far.json', {title: 'Far', items: [], grid: {x: 9, y: 0, w: 2}});
+    await sleep(800);
+    evaluate(`Main.layoutManager.getWorkAreaForMonitor = () =>
+        ({x: 0, y: 32, width: 1100, height: 1048}); global.display.emit('workareas-changed'); 0`);
+    await sleep(400);
+    assert.ok(layout()['far.json'].x < 9);
+    const r = rect('2-thesis.json');
+    await drive(`await driver.drag(${r.x + 100}, ${r.y + 20}, ${r.x + 130}, ${r.y + 200});`);
+    await sleep(500);
+    assert.equal(notes()['far.json'].grid.x, 9, 'saved place kept');
+    evaluate("delete Main.layoutManager.getWorkAreaForMonitor; global.display.emit('workareas-changed'); 0");
+    await sleep(400);
+    assert.equal(layout()['far.json'].x, 9);
+    removeNote('far.json');
+    await sleep(500);
 });
 
 test('a card restarted while animating ends up fully visible', async () => {

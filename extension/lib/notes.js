@@ -83,10 +83,15 @@ export function withGrid(text, grid) {
     return render({...raw, grid});
 }
 
-// The note's text with new contents. Starts from `text` when the file exists,
-// so fields from other tools are kept.
-export function withContent(text, {title, date, items, next}, grid = null) {
+const present = value => value !== undefined && value !== null && value !== '';
+
+// The note's text with some of its contents changed. Starts from `text` when
+// the file exists, so whatever isn't in `changes` stays as it is on disk.
+export function withContent(text, changes, grid = null) {
     const raw = text === null ? {} : parseObject(text);
+    const current = name => (Object.hasOwn(changes, name) ? changes[name] : field(raw, name));
+    const [title, date, next] = ['title', 'date', 'next'].map(current);
+    const items = current('items') ?? [];
     const others = {};
     for (const [key, value] of Object.entries(raw)) {
         if (!LEGACY.has(key) && !CONTENT.includes(key) && key !== 'grid')
@@ -94,10 +99,10 @@ export function withContent(text, {title, date, items, next}, grid = null) {
     }
     const place = grid ?? validGrid(field(raw, 'grid'));
     return render({
-        ...(title ? {title} : {}),
-        ...(date ? {date} : {}),
+        ...(present(title) ? {title} : {}),
+        ...(present(date) ? {date} : {}),
         items,
-        ...(next ? {next} : {}),
+        ...(present(next) ? {next} : {}),
         ...(place ? {grid: place} : {}),
         ...others,
     });

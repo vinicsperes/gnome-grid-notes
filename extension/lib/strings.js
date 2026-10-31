@@ -13,6 +13,7 @@ const STRINGS = {
         nextHint: 'What comes next',
         confirmDelete: 'delete?',
         saveFailed: 'Mural could not save a note',
+        saveFailedKeep: 'Your text is still there. Finish again to discard it.',
     },
     pt: {
         next: 'PRÓXIMO',
@@ -25,6 +26,7 @@ const STRINGS = {
         nextHint: 'O que vem depois',
         confirmDelete: 'apagar?',
         saveFailed: 'O Mural não conseguiu salvar uma nota',
+        saveFailedKeep: 'Seu texto continua aí. Finalize de novo para descartar.',
     },
 };
 

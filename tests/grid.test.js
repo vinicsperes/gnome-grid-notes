@@ -59,6 +59,25 @@ test('place still works when the screen is smaller than the block', () => {
     assert.deepEqual([out.x, out.y, out.w], [0, 0, 2]);
 });
 
+test('place uses the other columns before going off the screen', () => {
+    const tall = [item('a', 0, 0, 2, 20), item('b', 2, 0, 2, 20)];
+    const out = place({id: 'c', w: 2, h: 4}, tall, 8, 4, 22);
+    assert.deepEqual([out.x, out.y], [4, 0]);
+});
+
+test('place stays in its block while there is still room there', () => {
+    const tall = [item('a', 0, 0, 2, 5), item('b', 2, 0, 2, 5)];
+    const out = place({id: 'c', w: 2, h: 4}, tall, 8, 4, 22);
+    assert.equal(out.y, 5);
+    assert.ok(out.x <= 2);
+});
+
+test('place falls back to below when there is no room anywhere', () => {
+    const wall = [item('a', 0, 0, 4, 20)];
+    const out = place({id: 'c', w: 2, h: 4}, wall, 4, 4, 22);
+    assert.equal(out.y, 20);
+});
+
 test('dropping onto the top half of a card takes its place', () => {
     const items = [item('a', 0, 0, 2, 10), item('b', 2, 0)];
     const out = move(items, 'b', 0, 2, 8);

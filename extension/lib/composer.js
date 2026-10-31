@@ -62,10 +62,14 @@ export class Composer {
         this._initial = JSON.stringify(this.values());
     }
 
-    // Against what was on screen when writing started, since values() tidies
-    // up whitespace and blank lines that may have been in the file.
-    hasChanged() {
-        return JSON.stringify(this.values()) !== this._initial;
+    // Only what differs from when writing started, so that opening a note
+    // doesn't count as editing it even though values() tidies up whitespace and
+    // blank lines, and so a save leaves every other field to the file.
+    changes() {
+        const now = this.values();
+        const initial = JSON.parse(this._initial);
+        return Object.fromEntries(Object.entries(now).filter(([name, value]) =>
+            JSON.stringify(value) !== JSON.stringify(initial[name])));
     }
 
     focus() {
@@ -206,10 +210,13 @@ export class Composer {
         };
     }
 
+    // The board can refuse to close, when saving failed and the text would
+    // otherwise be lost.
     finish() {
-        if (this._finished)
+        if (this._finished || this._finishing)
             return;
-        this._finished = true;
-        this._onFinish(this.values(), this.hasChanged());
+        this._finishing = true;
+        this._finished = this._onFinish(this.values(), this.changes());
+        this._finishing = false;
     }
 }

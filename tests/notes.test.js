@@ -91,6 +91,12 @@ test('editing can update the position at the same time', () => {
     assert.deepEqual(saved.grid, {x: 4, y: 5, w: 2});
 });
 
+test('an edit only replaces the fields that changed', () => {
+    const text = '{"title": "a", "items": ["from a script"], "next": 0, "date": "2026-01-02"}';
+    const saved = JSON.parse(withContent(text, {title: 'b'}));
+    assert.deepEqual(saved, {title: 'b', date: '2026-01-02', items: ['from a script'], next: 0});
+});
+
 test('a new note starts from nothing', () => {
     const saved = JSON.parse(withContent(null,
         {title: 'a', date: '2026-01-02', items: ['b'], next: 'c'}, {x: 0, y: 0, w: 2}));

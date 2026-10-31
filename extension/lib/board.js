@@ -159,7 +159,7 @@ export class Board {
 
     _addSlot(grid) {
         return place({id: 'new', w: Math.min(DEFAULT_WIDTH, grid.cols), h: ADD_ROWS},
-            this._layout, grid.cols, INITIAL_COLUMNS);
+            this._layout, grid.cols, INITIAL_COLUMNS, grid.rows);
     }
 
     // The grid only shows itself while something is being moved.
@@ -260,7 +260,9 @@ export class Board {
                 fresh.push(created);
                 dirty = true;
             } else if (changed) {
-                card.note = note;
+                // A file can be broken for a moment while something writes it.
+                // Its card stays where it was until it's readable again.
+                card.note = error ? {...note, grid: card.note.grid} : note;
                 card.error = error;
                 card.userRows = note.grid?.h ?? 0;
                 card.render();
@@ -287,7 +289,7 @@ export class Board {
         for (const card of unplaced) {
             const w = Math.min(DEFAULT_WIDTH, grid.cols);
             items = [...items, place({id: card.file, w, h: this._rowsFor(card, w, grid)},
-                items, grid.cols, INITIAL_COLUMNS)];
+                items, grid.cols, INITIAL_COLUMNS, grid.rows)];
         }
         this._layout = items;
         this._applyLayout(grid, {instant: new Set(fresh)});
@@ -320,25 +322,33 @@ export class Board {
     }
 
     // Saving must never get in the way of getting back to the desktop.
-    _safely(save) {
+    _safely(save, hint = '') {
         try {
             save();
             return true;
         } catch (e) {
-            Main.notifyError(strings.saveFailed, e.message);
+            Main.notifyError(strings.saveFailed, hint ? `${e.message}\n${hint}` : e.message);
             return false;
         }
     }
 
     // Only cards that actually moved touch the disk, and only their position:
     // the contents in memory may be out of date while a reload is waiting.
-    _persist() {
+    //
+    // A card squeezed in by a screen too small for its saved place keeps that
+    // place on disk unless it's the one being moved, so that plugging the big
+    // monitor back in brings the arrangement back.
+    _persist(moved = null) {
+        const {cols} = this._metrics();
         for (const item of this._layout) {
             const card = this._cards.get(item.id);
             if (card.error || card.isNew)
                 continue;
+            const saved = card.note.grid;
+            if (saved && saved.x + saved.w > cols && card !== moved)
+                continue;
             const grid = this._gridOf(card, item);
-            if (JSON.stringify(grid) === JSON.stringify(card.note.grid))
+            if (JSON.stringify(grid) === JSON.stringify(saved))
                 continue;
             card.note.grid = grid;
             this._safely(() => this._store.saveGrid(card.file, grid));
@@ -362,6 +372,12 @@ export class Board {
     _onGripPress(card, grip, event) {
         if (this._gesture || event.get_button() !== Clutter.BUTTON_PRIMARY)
             return Clutter.EVENT_PROPAGATE;
+        if (this._composer) {
+            this._composer.finish();
+            return Clutter.EVENT_STOP;
+        }
+        if (card.error)
+            return Clutter.EVENT_STOP;
         const [x, y] = event.get_coords();
         const {actor} = card;
         card.settle();
@@ -426,7 +442,7 @@ export class Board {
             ...MOTION.fade,
             onComplete: () => this._dots.hide(),
         });
-        this._persist();
+        this._persist(gesture.card);
         this._syncAddButton(this._metrics());
         this._catchUp();
         return Clutter.EVENT_STOP;
@@ -435,15 +451,18 @@ export class Board {
     _onPress(card, event) {
         if (this._gesture || event.get_button() !== Clutter.BUTTON_PRIMARY)
             return Clutter.EVENT_PROPAGATE;
-        // A press on the button bubbles up to here, and grabbing the pointer
-        // would keep the button from ever seeing its release.
-        if (global.stage.get_event_actor(event) === card.close)
-            return Clutter.EVENT_PROPAGATE;
         if (this._composer) {
             if (card !== this._composer.card)
                 this._composer.finish();
             return Clutter.EVENT_STOP;
         }
+        // A press on the button bubbles up to here, and grabbing the pointer
+        // would keep the button from ever seeing its release.
+        if (global.stage.get_event_actor(event) === card.close)
+            return Clutter.EVENT_PROPAGATE;
+        // It has no way to save a position, so it stays put.
+        if (card.error)
+            return Clutter.EVENT_STOP;
         const [x, y] = event.get_coords();
         const {actor} = card;
         this._gesture = {
@@ -555,7 +574,7 @@ export class Board {
             actor.remove_all_transitions();
             actor.ease({...rect, scale_x: 1, scale_y: 1, rotation_angle_z: 0, ...MOTION.drop});
             this._showHints(false);
-            this._persist();
+            this._persist(card);
             this._syncAddButton(grid);
         } else {
             this._onClick(card);
@@ -608,9 +627,10 @@ export class Board {
     leaveFocus() {
         if (!this._focus)
             return;
-        // Closing the composer can end the focus by itself.
+        // Closing the composer can end the focus by itself, or refuse to close
+        // because the text couldn't be saved.
         this._composer?.finish();
-        if (!this._focus)
+        if (!this._focus || this._composer)
             return;
         const {grab, keyId} = this._focus;
         this._focus = null;
@@ -627,6 +647,8 @@ export class Board {
     }
 
     toggleFocus() {
+        if (this._gesture)
+            return;
         if (this._focus)
             this.leaveFocus();
         else
@@ -666,7 +688,7 @@ export class Board {
         this.layer.set_child_above_sibling(card.actor, null);
         this._composer = new Composer(card, {
             onGrow: () => this._fit(card),
-            onFinish: (values, changed) => this._closeComposer(values, changed, keepFocus),
+            onFinish: (values, changes) => this._closeComposer(values, changes, keepFocus),
         });
         this._composer.focus();
         this._fit(card);
@@ -681,26 +703,37 @@ export class Board {
         this._applyLayout(grid);
     }
 
-    _closeComposer(values, changed, keepFocus) {
-        const {card} = this._composer;
+    // Says whether the composer may close. It stays open the first time saving
+    // fails, so the text isn't lost to a full disk. A second try gives up.
+    _closeComposer(values, changes, keepFocus) {
+        const composer = this._composer;
+        const {card} = composer;
+        const blank = isBlank(values);
+        const edited = Object.keys(changes).length > 0 && !blank;
+        const hint = composer.failed ? '' : strings.saveFailedKeep;
+        const date = isoDay(new Date());
+        let saved = true;
+
+        if (card.isNew && !blank)
+            saved = this._saveNew(card, {...values, date}, hint);
+        else if (!card.isNew && edited)
+            saved = this._saveEdit(card, {...changes, date}, hint);
+        if (!saved && !composer.failed) {
+            composer.failed = true;
+            return false;
+        }
+
         this._composer = null;
         card.setEditing(false);
-        const blank = isBlank(values);
-
-        if (card.isNew && blank) {
+        // Clearing out an existing note isn't how notes get deleted, so that
+        // leaves it as it was.
+        if (card.isNew) {
             this._dropCard(card);
         } else {
-            // Clearing out an existing note isn't how notes get deleted, so
-            // that leaves it as it was.
-            const save = changed && !blank;
-            if (save)
-                Object.assign(card.note, values, {date: isoDay(new Date())});
+            if (saved && edited)
+                card.pulse();
             card.render();
             this._fit(card);
-            if (card.isNew)
-                this._saveNew(card);
-            else if (save)
-                this._saveEdit(card);
             this._persist();
         }
 
@@ -709,32 +742,32 @@ export class Board {
         else
             this.leaveFocus();
         this._catchUp();
+        return true;
     }
 
-    _saveEdit(card) {
+    _saveEdit(card, changes, hint) {
         const item = this._layout.find(i => i.id === card.file);
         const grid = this._gridOf(card, item);
-        card.note.grid = grid;
-        if (this._safely(() => this._store.saveContent(card.file, card.note, grid)))
-            card.pulse();
+        if (!this._safely(() => this._store.saveContent(card.file, changes, grid), hint))
+            return false;
+        Object.assign(card.note, changes, {grid});
+        return true;
     }
 
     // Gets its real file name only now that it has a title to name it after.
-    _saveNew(card) {
+    _saveNew(card, content, hint) {
         const item = this._layout.find(i => i.id === card.file);
         const grid = this._gridOf(card, item);
-        card.note.grid = grid;
         let file;
-        if (!this._safely(() => (file = this._store.create(card.note, grid)))) {
-            this._dropCard(card);
-            return;
-        }
+        if (!this._safely(() => (file = this._store.create(content, grid)), hint))
+            return false;
         this._cards.delete(card.file);
         this._layout = this._layout.map(i => (i.id === card.file ? {...i, id: file} : i));
+        Object.assign(card.note, content, {grid});
         card.file = file;
         card.isNew = false;
         this._cards.set(file, card);
-        card.pulse();
+        return true;
     }
 
     _delete(card) {
@@ -764,7 +797,10 @@ export class Board {
     }
 
     destroy() {
-        // Whatever was being typed still counts, say if the screen locked.
+        // Whatever was being typed still counts, say if the screen locked. There
+        // is no staying open now, so if saving fails the second try gives up.
+        this._composer?.finish();
+        this._composer?.finish();
         this.leaveFocus();
         if (this._gesture) {
             this._gesture.grab.dismiss();

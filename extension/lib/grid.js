@@ -47,16 +47,29 @@ export function compact(items, cols, order = byPosition) {
 // Finds a slot for a new item: the highest free spot, preferring the leftmost
 // columns of the `block` columns nearest the origin. Scanning this way fills
 // whichever column is shortest, so plain equal-width cards end up as a masonry.
-export function place(item, items, cols, block = cols) {
-    const start = Math.min(block, cols);
+//
+// When that block is full down to `rows`, the rest of the columns are used too,
+// nearest first, rather than putting the item below the bottom of the screen.
+export function place(item, items, cols, block = cols, rows = Infinity) {
     const w = Math.min(item.w, cols);
+    const start = Math.min(block, cols);
+    const at = x => ({...item, w, x, y: settle({...item, w, x}, items)});
+
     let best = null;
     for (let x = start - w; x >= 0; x--) {
-        const y = settle({...item, w, x}, items);
-        if (!best || y < best.y)
-            best = {...item, w, x, y};
+        const slot = at(x);
+        if (!best || slot.y < best.y)
+            best = slot;
     }
-    return best ?? {...item, w, x: 0, y: settle({...item, w, x: 0}, items)};
+    best ??= at(0);
+    if (best.y + item.h <= rows)
+        return best;
+    for (let x = Math.max(0, start - w + 1); x <= cols - w; x++) {
+        const slot = at(x);
+        if (slot.y < best.y)
+            best = slot;
+    }
+    return best;
 }
 
 // Where the dragged item sorts among the others. An item it overlaps counts as
@@ -104,6 +117,7 @@ export function metrics(area, {cell, row, gap, margin}) {
     const top = area.y + margin;
     return {
         cols,
+        rows: Math.max(1, Math.floor((area.height - 2 * margin + gap) / stepY)),
         stepX,
         stepY,
         widthOf: w => w * stepX - gap,

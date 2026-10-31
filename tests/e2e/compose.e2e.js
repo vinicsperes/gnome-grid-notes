@@ -183,19 +183,18 @@ test('turning off in the middle of writing keeps what was typed', async () => {
     assert.ok(layout()['rescued.json']);
 });
 
-test('deleting another card while writing leaves no stray file', async () => {
+test('reaching for another card while writing saves the note first', async () => {
     board('b.newNote()');
     await sleep(300);
     await type('Half');
     const r = rect('3-synth.json');
-    const [x, y] = [r.x + r.width - 18, r.y + 18];
-    await drive(`await driver.click(${x}, ${y}); await driver.wait(100); await driver.click(${x}, ${y});`);
+    await drive(`await driver.click(${r.x + r.width - 18}, ${r.y + 18});`);
     await sleep(500);
-    assert.equal(readdirSync(join(process.env.MURAL_RUN, 'data', 'mural')).filter(f => f.startsWith('.')).length, 0);
-    assert.equal(notes()['3-synth.json'], undefined);
-    await tap('esc');
-    await sleep(400);
+    assert.equal(board('b._composer'), null);
     assert.equal(notes()['half.json'].title, 'Half');
+    assert.ok(notes()['3-synth.json'], 'one click never deletes');
+    assert.equal(readdirSync(join(process.env.MURAL_RUN, 'data', 'mural')).filter(f => f.startsWith('.')).length, 0);
+    await drive('driver.move(100, 900); await driver.wait(150);');
 });
 
 test('a note with no title shows just its date up top', async () => {
@@ -264,7 +263,96 @@ test('clearing out an existing note leaves it as it was', async () => {
     assert.equal(notes()['clear.json'].date, '2026-01-02');
 });
 
-test('a failed save tells you and still gives the desktop back', async () => {
+test('an edit leaves alone what a script changed in the meantime', async () => {
+    writeNote('both.json', {title: 'Both', items: ['original']});
+    await sleep(900);
+    const r = rect('both.json');
+    await drive(`await driver.click(${r.x + 150}, ${r.y + 20}, 2);`);
+    await sleep(300);
+    await drive('for (let i = 0; i < 8; i++) await driver.tap(Clutter.KEY_Up);');
+    await drive('await driver.tap(Clutter.KEY_End);');
+    await type('!');
+    writeNote('both.json', {title: 'Both', items: ['original', 'added by a script']});
+    await sleep(300);
+    await tap('esc');
+    await sleep(700);
+    const saved = notes()['both.json'];
+    assert.deepEqual(saved.items, ['original', 'added by a script']);
+    assert.equal(saved.title, 'Both!');
+    assert.deepEqual(board(`b._cards.get('both.json').note.items`), ['original', 'added by a script']);
+});
+
+test('pressing another card or its controls finishes the note', async () => {
+    const r = rect('both.json');
+    const other = rect('2-thesis.json');
+    for (const [x, y] of [
+        [other.x + other.width - 4, other.y + other.height - 4],
+        [other.x + other.width - 18, other.y + 18],
+        [other.x + 150, other.y + 40],
+    ]) {
+        await drive(`await driver.click(${r.x + 150}, ${r.y + 20}, 2);`);
+        await sleep(300);
+        assert.equal(board('b._composer !== null'), true);
+        await drive(`await driver.click(${x}, ${y});`);
+        await sleep(350);
+        assert.equal(board('b._composer'), null);
+        assert.equal(board('b._gesture'), null);
+        await drive('driver.move(100, 900); await driver.wait(100);');
+        await sleep(200);
+    }
+    assert.ok(notes()['2-thesis.json'], 'still there');
+});
+
+test('the focus shortcut waits for a drag to end', async () => {
+    const r = rect('2-thesis.json');
+    await drive(`driver.move(${r.x + 150}, ${r.y + 20}); await driver.wait(80); driver.press(); await driver.wait(40);
+        for (let i = 1; i <= 8; i++) { driver.move(${r.x + 150} + i * 3, ${r.y + 20}); await driver.wait(16); }`);
+    board('b.toggleFocus()');
+    await sleep(100);
+    assert.equal(board('b._focus'), null);
+    await drive('driver.release();');
+    await sleep(500);
+    assert.equal(board('b._gesture'), null);
+});
+
+test('a new note that cannot be saved keeps its text until it can', async () => {
+    const dir = join(process.env.MURAL_RUN, 'data', 'mural');
+    board('b.newNote()');
+    await sleep(300);
+    await type('Important');
+    chmodSync(dir, 0o555);
+    await tap('esc');
+    await sleep(300);
+    assert.equal(board('b._composer !== null'), true, 'stays open');
+    assert.equal(board('b._composer.values().title'), 'Important');
+    assert.equal(notes()['important.json'], undefined);
+    chmodSync(dir, 0o755);
+    await tap('esc');
+    await sleep(500);
+    assert.equal(board('b._composer'), null);
+    assert.equal(notes()['important.json'].title, 'Important');
+});
+
+test('a second failure gives up and gives the desktop back', async () => {
+    const dir = join(process.env.MURAL_RUN, 'data', 'mural');
+    const before = readdirSync(dir).length;
+    board('b.newNote()');
+    await sleep(300);
+    await type('Doomed');
+    chmodSync(dir, 0o555);
+    await tap('esc');
+    await sleep(200);
+    await tap('esc');
+    await sleep(500);
+    chmodSync(dir, 0o755);
+    assert.equal(board('b._composer'), null);
+    assert.equal(board('b._focus'), null);
+    assert.equal(board('global.stage.get_grab_actor() === null'), true);
+    assert.equal(readdirSync(dir).length, before, 'nothing left behind');
+    assert.equal(board(`[...b._cards.keys()].some(f => f.startsWith('.'))`), false);
+});
+
+test('a failed edit tells you and still gives the desktop back', async () => {
     const dir = join(process.env.MURAL_RUN, 'data', 'mural');
     const r = rect('clear.json');
     await drive(`await driver.click(${r.x + 150}, ${r.y + 20}, 2);`);
@@ -272,6 +360,9 @@ test('a failed save tells you and still gives the desktop back', async () => {
     await type('more');
     chmodSync(dir, 0o555);
     chmodSync(join(dir, 'clear.json'), 0o444);
+    await tap('esc');
+    await sleep(300);
+    assert.equal(board('b._composer !== null'), true, 'keeps the text at first');
     await tap('esc');
     await sleep(500);
     chmodSync(dir, 0o755);

@@ -9,7 +9,8 @@ import {emptyNote, fileNameFor, parseNote, withContent, withGrid} from './notes.
 // to do no harm there. Far more text than any card could show.
 const MAX_BYTES = 256 * 1024;
 
-const decoder = new TextDecoder();
+// Fatal, because decoding bad bytes leniently and saving would corrupt the file.
+const decoder = new TextDecoder('utf-8', {fatal: true});
 const encoder = new TextEncoder();
 
 export class NoteStore {
@@ -100,17 +101,12 @@ export class NoteStore {
                 throw e;
             return;
         }
-        if (updated === text)
-            return;
-        // Content the board hasn't seen yet has to still look new to the next
-        // reload, or the card would keep showing the old text.
-        const seen = this._text.get(file) === text;
-        this._write(file, updated);
-        if (!seen)
-            this._text.delete(file);
+        if (updated !== text)
+            this._writeOver(file, text, updated);
     }
 
-    saveContent(file, content, grid) {
+    // Same idea for an edit: only the fields that were changed get replaced.
+    saveContent(file, changes, grid) {
         let text = null;
         try {
             text = this._load(file);
@@ -118,7 +114,16 @@ export class NoteStore {
             if (!e.matches(Gio.IOErrorEnum, Gio.IOErrorEnum.NOT_FOUND))
                 throw e;
         }
-        this._write(file, withContent(text, content, grid));
+        this._writeOver(file, text, withContent(text, changes, grid));
+    }
+
+    // Content the board hasn't seen yet has to still look new to the next
+    // reload, or the card would keep showing the old text.
+    _writeOver(file, previous, text) {
+        const seen = this._text.get(file) === previous;
+        this._write(file, text);
+        if (!seen)
+            this._text.delete(file);
     }
 
     // Writes a note under a new name made from its title. Creating the file
@@ -126,21 +131,27 @@ export class NoteStore {
     // even one written a moment ago by something else.
     create(content, grid) {
         const text = withContent(null, content, grid);
+        const claim = name => this._dir.get_child(name).create(Gio.FileCreateFlags.NONE, null)
+            .close(null);
         const taken = this._names().map(({file}) => file);
         for (;;) {
             const file = fileNameFor(content.title, taken);
-            let stream;
             try {
-                stream = this._dir.get_child(file).create(Gio.FileCreateFlags.NONE, null);
+                claim(file);
             } catch (e) {
                 if (!e.matches(Gio.IOErrorEnum, Gio.IOErrorEnum.EXISTS))
                     throw e;
                 taken.push(file);
                 continue;
             }
-            stream.write_all(encoder.encode(text), null);
-            stream.close(null);
-            this._text.set(file, text);
+            // The contents arrive in one atomic step. If they can't, nothing
+            // is left behind pretending to be a note.
+            try {
+                this._write(file, text);
+            } catch (e) {
+                this._dir.get_child(file).delete(null);
+                throw e;
+            }
             return file;
         }
     }

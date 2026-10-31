@@ -11,10 +11,11 @@ const SHORTCUT_MODES = Shell.ActionMode.NORMAL | Shell.ActionMode.POPUP;
 
 export default class MuralExtension extends Extension {
     enable() {
+        // First, since it's the one step that can fail on a broken install.
+        const settings = this.getSettings();
         this._store = new NoteStore();
         this._board = new Board(this._store);
 
-        const settings = this.getSettings();
         const bind = (name, handler) => Main.wm.addKeybinding(name, settings,
             Meta.KeyBindingFlags.IGNORE_AUTOREPEAT, SHORTCUT_MODES, handler);
         bind('new-note', () => this._board.newNote());
