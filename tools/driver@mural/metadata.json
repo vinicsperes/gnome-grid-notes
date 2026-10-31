@@ -1,0 +1,6 @@
+{
+  "uuid": "driver@mural",
+  "name": "Mural test driver",
+  "description": "Drives the Mural extension in headless end-to-end tests.",
+  "shell-version": ["50"]
+}
