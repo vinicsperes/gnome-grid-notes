@@ -23,7 +23,9 @@ export class NoteStore {
     }
 
     // A file that doesn't parse (say, half written by another program) still
-    // gets a card saying so, and is never overwritten.
+    // gets a card saying so, and is never overwritten. Each entry also says
+    // whether it differs from what was last read or written here, which is how
+    // the board tells its own saves from someone else's edits.
     list() {
         const entries = [];
         const en = this._dir.enumerate_children('standard::name', Gio.FileQueryInfoFlags.NONE, null);
@@ -34,6 +36,8 @@ export class NoteStore {
         }
         en.close(null);
         entries.sort((a, b) => a.file.localeCompare(b.file));
+        for (const entry of entries)
+            entry.changed = this._text.get(entry.file) !== entry.text;
         this._text = new Map(entries.map(e => [e.file, e.text]));
         return entries;
     }
@@ -51,12 +55,6 @@ export class NoteStore {
 
     onChanged(callback) {
         this._changedId = this._monitor.connect('changed', callback);
-    }
-
-    // Whether a listed file differs from what was last read or written here.
-    // This is how the board tells its own saves from someone else's edits.
-    isKnown(file, text) {
-        return this._text.get(file) === text;
     }
 
     save(file, note) {

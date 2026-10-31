@@ -3,17 +3,30 @@
 import Clutter from 'gi://Clutter';
 import GLib from 'gi://GLib';
 import Meta from 'gi://Meta';
+import St from 'gi://St';
 
 import * as Main from 'resource:///org/gnome/shell/ui/main.js';
 
 import {Card} from './card.js';
-import {compact, metrics, place} from './grid.js';
+import {compact, metrics, move, place} from './grid.js';
 
 const SIZES = {cell: 141, row: 18, gap: 18, margin: 40};
 const DEFAULT_WIDTH = 2;
 // How many columns notes without a saved position spread across.
 const INITIAL_COLUMNS = 8;
 const REFRESH_SECONDS = 30 * 60;
+const DRAG_THRESHOLD = 5;
+const MAX_TILT = 3.5;
+
+const {EASE_OUT_QUINT, EASE_OUT_QUAD, EASE_OUT_BACK} = Clutter.AnimationMode;
+const MOTION = {
+    // Neighbours sliding out of the way, quick enough to keep up with the hand.
+    reflow: {duration: 240, mode: EASE_OUT_QUINT},
+    lift: {duration: 140, mode: EASE_OUT_QUAD},
+    // The small overshoot makes a dropped card feel like it clicks into place.
+    drop: {duration: 340, mode: EASE_OUT_BACK},
+    fade: {duration: 160, mode: EASE_OUT_QUAD},
+};
 
 // The desktop icons extensions only label their window a moment after it maps,
 // so the application id is what identifies it from the first frame.
@@ -24,22 +37,23 @@ function isDesktop(window) {
         DESKTOP_APPS.includes(window.get_gtk_application_id());
 }
 
-export const MOTION = {
-    move: {duration: 240, mode: Clutter.AnimationMode.EASE_OUT_QUINT},
-};
-
 export class Board {
     constructor(store) {
         this._store = store;
         this._cards = new Map();
         this._layout = [];
+        this._gesture = null;
 
         this.layer = new Clutter.Actor({name: 'mural'});
         global.window_group.add_child(this.layer);
+        this._buildGridHints();
 
         this._restackedId = global.display.connect('restacked', () => this._syncStack());
         this._mapId = global.window_manager.connect_after('map', () => this._syncStack());
-        this._monitorsId = Main.layoutManager.connect('monitors-changed', () => this._relayout());
+        this._monitorsId = Main.layoutManager.connect('monitors-changed', () => {
+            this._dots.queue_repaint();
+            this._relayout();
+        });
         this._store.onChanged(() => this._queueReload());
         this._clockId = GLib.timeout_add_seconds(GLib.PRIORITY_LOW, REFRESH_SECONDS, () => {
             for (const card of this._cards.values())
@@ -66,9 +80,57 @@ export class Board {
         group.set_child_above_sibling(this.layer, below);
     }
 
-    _metrics() {
+    // The grid only shows itself while something is being moved.
+    _buildGridHints() {
+        const {width, height} = global.stage;
+        this._dots = new St.DrawingArea({width, height, opacity: 0, visible: false});
+        this._dots.connect('repaint', area => this._paintDots(area));
+        this.layer.add_child(this._dots);
+
+        this._ghost = new St.Widget({style_class: 'mural-ghost', opacity: 0, visible: false});
+        this.layer.add_child(this._ghost);
+    }
+
+    _paintDots(area) {
+        const cr = area.get_context();
+        const grid = this._metrics();
+        const {y: top, height} = this._workArea();
+        cr.setSourceRGBA(1, 1, 1, 0.28);
+        for (let x = 0; x < grid.cols; x++) {
+            for (let y = 0; ; y++) {
+                const {px, py} = grid.toPixels({x, y, w: 1});
+                if (py > top + height)
+                    break;
+                cr.arc(px, py, 1.4, 0, 2 * Math.PI);
+                cr.fill();
+            }
+        }
+        cr.$dispose();
+    }
+
+    _showHints(shown) {
+        for (const hint of [this._dots, this._ghost]) {
+            hint.remove_all_transitions();
+            if (shown)
+                hint.show();
+            hint.ease({
+                opacity: shown ? 255 : 0,
+                ...MOTION.fade,
+                onComplete: () => {
+                    if (!shown)
+                        hint.hide();
+                },
+            });
+        }
+    }
+
+    _workArea() {
         const {layoutManager} = Main;
-        return metrics(layoutManager.getWorkAreaForMonitor(layoutManager.primaryIndex), SIZES);
+        return layoutManager.getWorkAreaForMonitor(layoutManager.primaryIndex);
+    }
+
+    _metrics() {
+        return metrics(this._workArea(), SIZES);
     }
 
     // Cards never get shorter than their contents, so text is never cut off.
@@ -88,31 +150,42 @@ export class Board {
     }
 
     _reload() {
+        // Nothing moves under the pointer. The drop catches up afterwards.
+        if (this._gesture) {
+            this._reloadPending = true;
+            return;
+        }
         const entries = this._store.list();
         const seen = new Set(entries.map(e => e.file));
+        let dirty = false;
 
         for (const [file, card] of this._cards) {
             if (!seen.has(file)) {
                 card.destroy();
                 this._cards.delete(file);
+                dirty = true;
             }
         }
         const fresh = [];
-        for (const {file, note, error} of entries) {
+        for (const {file, note, error, changed} of entries) {
             const card = this._cards.get(file);
             if (!card) {
                 const created = new Card(file, note, error);
+                this._wire(created);
                 this.layer.add_child(created.actor);
                 this._cards.set(file, created);
                 fresh.push(created);
-            } else {
+                dirty = true;
+            } else if (changed) {
                 card.note = note;
                 card.error = error;
                 card.userRows = note.grid?.h ?? 0;
                 card.render();
+                dirty = true;
             }
         }
-        this._relayout(fresh);
+        if (dirty)
+            this._relayout(fresh);
     }
 
     // Saved positions first, then anything new takes the next free slot.
@@ -132,24 +205,174 @@ export class Board {
                 items, grid.cols, INITIAL_COLUMNS)];
         }
         this._layout = items;
-        this._applyLayout(grid, new Set(fresh));
+        this._applyLayout(grid, {instant: new Set(fresh)});
     }
 
-    _applyLayout(grid, instant = new Set()) {
+    _rectOf(item, grid) {
+        const {px, py} = grid.toPixels(item);
+        return {x: px, y: py, width: grid.widthOf(item.w), height: grid.heightOf(item.h)};
+    }
+
+    _applyLayout(grid, {instant = new Set(), skip = null} = {}) {
         for (const item of this._layout) {
             const card = this._cards.get(item.id);
-            const {px, py} = grid.toPixels(item);
-            const target = {x: px, y: py, width: grid.widthOf(item.w), height: grid.heightOf(item.h)};
+            if (card === skip)
+                continue;
+            const rect = this._rectOf(item, grid);
             if (instant.has(card)) {
-                card.actor.set_position(target.x, target.y);
-                card.actor.set_size(target.width, target.height);
+                card.actor.set_position(rect.x, rect.y);
+                card.actor.set_size(rect.width, rect.height);
             } else {
-                card.actor.ease({...target, ...MOTION.move});
+                card.actor.ease({...rect, ...MOTION.reflow});
             }
         }
     }
 
+    // Only cards that actually moved get written.
+    _persist() {
+        for (const item of this._layout) {
+            const card = this._cards.get(item.id);
+            if (card.error)
+                continue;
+            const {x, y, w} = item;
+            card.note.grid = card.userRows ? {x, y, w, h: card.userRows} : {x, y, w};
+            this._store.save(card.file, card.note);
+        }
+    }
+
+    _wire(card) {
+        const {actor} = card;
+        actor.connect('button-press-event', (_, event) => this._onPress(card, event));
+        actor.connect('motion-event', (_, event) => this._onMotion(event));
+        actor.connect('button-release-event', (_, event) => this._onRelease(event));
+    }
+
+    _onPress(card, event) {
+        if (this._gesture || event.get_button() !== Clutter.BUTTON_PRIMARY)
+            return Clutter.EVENT_PROPAGATE;
+        const [x, y] = event.get_coords();
+        const {actor} = card;
+        this._gesture = {
+            card,
+            pressX: x,
+            pressY: y,
+            lastX: x,
+            startX: actor.x,
+            startY: actor.y,
+            lifted: false,
+            cell: null,
+            base: this._layout,
+            grab: global.stage.grab(actor),
+        };
+        return Clutter.EVENT_STOP;
+    }
+
+    _onMotion(event) {
+        const gesture = this._gesture;
+        if (!gesture)
+            return Clutter.EVENT_PROPAGATE;
+        const [x, y] = event.get_coords();
+        if (!gesture.lifted) {
+            if (Math.hypot(x - gesture.pressX, y - gesture.pressY) < DRAG_THRESHOLD)
+                return Clutter.EVENT_STOP;
+            this._lift(gesture);
+        }
+        const {actor} = gesture.card;
+        actor.set_position(gesture.startX + x - gesture.pressX, gesture.startY + y - gesture.pressY);
+        this._tilt(gesture, x);
+        this._previewDrop(gesture);
+        return Clutter.EVENT_STOP;
+    }
+
+    _lift(gesture) {
+        const {card} = gesture;
+        const {actor} = card;
+        const grid = this._metrics();
+        actor.remove_all_transitions();
+        actor.add_style_class_name('mural-card-lifted');
+        actor.set_cursor_type(Clutter.CursorType.GRABBING);
+        this.layer.set_child_above_sibling(actor, null);
+        actor.ease({scale_x: 1.03, scale_y: 1.03, ...MOTION.lift});
+
+        const item = this._layout.find(i => i.id === card.file);
+        const rect = this._rectOf(item, grid);
+        this._ghost.set_position(rect.x, rect.y);
+        this._ghost.set_size(rect.width, rect.height);
+        this._showHints(true);
+        gesture.lifted = true;
+    }
+
+    // Leans a little into the movement, like something held by one corner.
+    _tilt(gesture, x) {
+        const {actor} = gesture.card;
+        const lean = Math.max(-MAX_TILT, Math.min(MAX_TILT, (x - gesture.lastX) * 0.4));
+        gesture.lastX = x;
+        actor.ease({rotation_angle_z: lean, duration: 120, mode: EASE_OUT_QUAD});
+        if (gesture.tiltId)
+            GLib.source_remove(gesture.tiltId);
+        gesture.tiltId = GLib.timeout_add(GLib.PRIORITY_DEFAULT, 90, () => {
+            gesture.tiltId = 0;
+            actor.ease({rotation_angle_z: 0, duration: 200, mode: EASE_OUT_QUAD});
+            return GLib.SOURCE_REMOVE;
+        });
+    }
+
+    // Always from the layout at the start of the drag, so neighbours that were
+    // only pushed in passing go back when the card moves on.
+    _previewDrop(gesture) {
+        const {card} = gesture;
+        const {actor} = card;
+        const grid = this._metrics();
+        const item = gesture.base.find(i => i.id === card.file);
+        const cell = grid.toCell(actor.x, actor.y, item.w);
+        if (gesture.cell?.x === cell.x && gesture.cell?.y === cell.y)
+            return;
+        gesture.cell = cell;
+        this._layout = move(gesture.base, card.file, cell.x, cell.y, grid.cols);
+        this._applyLayout(grid, {skip: card});
+        const landing = this._rectOf(this._layout.find(i => i.id === card.file), grid);
+        this._ghost.ease({x: landing.x, y: landing.y, width: landing.width, height: landing.height,
+            ...MOTION.reflow});
+    }
+
+    _onRelease(event) {
+        const gesture = this._gesture;
+        if (!gesture || event.get_button() !== Clutter.BUTTON_PRIMARY)
+            return Clutter.EVENT_PROPAGATE;
+        this._endGesture(gesture);
+        return Clutter.EVENT_STOP;
+    }
+
+    _endGesture(gesture) {
+        const {card, grab} = gesture;
+        const {actor} = card;
+        grab.dismiss();
+        this._gesture = null;
+        if (gesture.tiltId)
+            GLib.source_remove(gesture.tiltId);
+
+        if (gesture.lifted) {
+            const grid = this._metrics();
+            const rect = this._rectOf(this._layout.find(i => i.id === card.file), grid);
+            actor.remove_style_class_name('mural-card-lifted');
+            actor.set_cursor_type(Clutter.CursorType.GRAB);
+            actor.remove_all_transitions();
+            actor.ease({...rect, scale_x: 1, scale_y: 1, rotation_angle_z: 0, ...MOTION.drop});
+            this._showHints(false);
+            this._persist();
+        }
+        if (this._reloadPending) {
+            this._reloadPending = false;
+            this._queueReload();
+        }
+    }
+
     destroy() {
+        if (this._gesture) {
+            this._gesture.grab.dismiss();
+            if (this._gesture.tiltId)
+                GLib.source_remove(this._gesture.tiltId);
+        }
         if (this._reloadId)
             GLib.source_remove(this._reloadId);
         GLib.source_remove(this._clockId);

@@ -1,6 +1,7 @@
 // One note on screen: draws its contents and knows how much room they need.
 // Where it sits and how it moves is up to the board.
 import Clutter from 'gi://Clutter';
+import Graphene from 'gi://Graphene';
 import Pango from 'gi://Pango';
 import St from 'gi://St';
 
@@ -40,7 +41,9 @@ export class Card {
             layout_manager: new Clutter.BinLayout(),
             reactive: true,
             track_hover: true,
+            pivot_point: new Graphene.Point({x: 0.5, y: 0.5}),
         });
+        this.actor.set_cursor_type(Clutter.CursorType.GRAB);
         this.body = new St.BoxLayout({
             orientation: Clutter.Orientation.VERTICAL,
             x_expand: true,

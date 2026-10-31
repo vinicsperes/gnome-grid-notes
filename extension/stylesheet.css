@@ -50,3 +50,18 @@
 }
 
 .mural-next-text { color: #f5f2f7; }
+
+.mural-card:hover { border-color: rgba(255, 255, 255, 0.16); }
+
+.mural-card-lifted {
+  background-color: rgba(12, 8, 16, 0.97);
+  border-color: rgba(255, 74, 110, 0.45);
+  box-shadow: 0 22px 48px rgba(0, 0, 0, 0.7);
+}
+
+/* The slot a dragged card will land in. */
+.mural-ghost {
+  border-radius: 14px;
+  border: 1px solid rgba(255, 74, 110, 0.4);
+  background-color: rgba(229, 15, 61, 0.08);
+}
