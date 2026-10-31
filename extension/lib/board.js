@@ -3,12 +3,15 @@
 import Clutter from 'gi://Clutter';
 import GLib from 'gi://GLib';
 import Meta from 'gi://Meta';
+import Shell from 'gi://Shell';
 import St from 'gi://St';
 
 import * as Main from 'resource:///org/gnome/shell/ui/main.js';
 
 import {Card} from './card.js';
+import {Composer} from './composer.js';
 import {compact, metrics, move, place, resize} from './grid.js';
+import {isBlank, isoDay, parseNote} from './notes.js';
 
 const SIZES = {cell: 141, row: 18, gap: 18, margin: 40};
 const DEFAULT_WIDTH = 2;
@@ -19,6 +22,8 @@ const REFRESH_SECONDS = 30 * 60;
 const DRAG_THRESHOLD = 5;
 const MAX_TILT = 3.5;
 const ARRIVAL_STAGGER = 45;
+const DOUBLE_CLICK_MS = 400;
+const ADD_ROWS = 2;
 
 const {EASE_OUT_QUINT, EASE_OUT_QUAD, EASE_OUT_BACK} = Clutter.AnimationMode;
 const MOTION = {
@@ -45,10 +50,14 @@ export class Board {
         this._cards = new Map();
         this._layout = [];
         this._gesture = null;
+        this._composer = null;
+        this._focus = null;
 
         this.layer = new Clutter.Actor({name: 'mural'});
         global.window_group.add_child(this.layer);
+        this._buildScrim();
         this._buildGridHints();
+        this._buildAddButton();
 
         this._restackedId = global.display.connect('restacked', () => this._syncStack());
         this._mapId = global.window_manager.connect_after('map', () => this._syncStack());
@@ -76,10 +85,55 @@ export class Board {
     // runs again after each restack.
     _syncStack() {
         const group = global.window_group;
+        if (this._focus) {
+            group.set_child_above_sibling(this.layer, null);
+            return;
+        }
         const desktop = group.get_children().filter(actor =>
             actor instanceof Meta.WindowActor && isDesktop(actor.meta_window));
         const below = desktop.at(-1) ?? Main.layoutManager._backgroundGroup;
         group.set_child_above_sibling(this.layer, below);
+    }
+
+    _buildScrim() {
+        const {width, height} = global.stage;
+        this._scrim = new St.Widget({
+            style_class: 'mural-scrim',
+            reactive: true,
+            width,
+            height,
+            opacity: 0,
+            visible: false,
+        });
+        this._scrim.connect('button-press-event', () => {
+            if (this._composer)
+                this._composer.finish();
+            else
+                this.leaveFocus();
+            return Clutter.EVENT_STOP;
+        });
+        this.layer.add_child(this._scrim);
+    }
+
+    _buildAddButton() {
+        this._add = new St.Button({style_class: 'mural-add', label: '+'});
+        this._add.connect('clicked', () => this.newNote());
+        this.layer.add_child(this._add);
+    }
+
+    // Sits exactly where a new note would go, so writing one starts from here.
+    _syncAddButton(grid) {
+        const slot = this._addSlot(grid);
+        const rect = this._rectOf({...slot, h: ADD_ROWS}, grid);
+        this._add.ease({...rect, ...MOTION.reflow});
+        this._add.reactive = !this._gesture && !this._composer;
+        this._add.sync_hover();
+        this._add.ease({opacity: this._gesture || this._composer ? 0 : 255, ...MOTION.fade});
+    }
+
+    _addSlot(grid) {
+        return place({id: 'new', w: Math.min(DEFAULT_WIDTH, grid.cols), h: ADD_ROWS},
+            this._layout, grid.cols, INITIAL_COLUMNS);
     }
 
     // The grid only shows itself while something is being moved.
@@ -152,8 +206,8 @@ export class Board {
     }
 
     _reload() {
-        // Nothing moves under the pointer. The drop catches up afterwards.
-        if (this._gesture) {
+        // Nothing moves under the pointer or the caret. They catch up afterwards.
+        if (this._gesture || this._composer) {
             this._reloadPending = true;
             return;
         }
@@ -230,6 +284,7 @@ export class Board {
                 card.actor.ease({...rect, ...MOTION.reflow});
             }
         }
+        this._syncAddButton(grid);
     }
 
     // Only cards that actually moved get written.
@@ -332,6 +387,11 @@ export class Board {
     _onPress(card, event) {
         if (this._gesture || event.get_button() !== Clutter.BUTTON_PRIMARY)
             return Clutter.EVENT_PROPAGATE;
+        if (this._composer) {
+            if (card !== this._composer.card)
+                this._composer.finish();
+            return Clutter.EVENT_STOP;
+        }
         const [x, y] = event.get_coords();
         const {actor} = card;
         this._gesture = {
@@ -360,6 +420,8 @@ export class Board {
             this._lift(gesture);
         }
         const {actor} = gesture.card;
+        actor.remove_transition('x');
+        actor.remove_transition('y');
         actor.set_position(gesture.startX + x - gesture.pressX, gesture.startY + y - gesture.pressY);
         this._tilt(gesture, x);
         this._previewDrop(gesture);
@@ -442,8 +504,172 @@ export class Board {
             actor.ease({...rect, scale_x: 1, scale_y: 1, rotation_angle_z: 0, ...MOTION.drop});
             this._showHints(false);
             this._persist();
+            this._syncAddButton(grid);
+        } else {
+            this._onClick(card);
         }
         this._catchUp();
+    }
+
+    _onClick(card) {
+        const now = GLib.get_monotonic_time() / 1000;
+        const isDouble = this._lastClick?.card === card && now - this._lastClick.time < DOUBLE_CLICK_MS;
+        this._lastClick = isDouble ? null : {card, time: now};
+        if (isDouble && !card.error)
+            this._edit(card);
+    }
+
+    // In front of the windows, with everything else dimmed. Holds the pointer
+    // and keyboard, so the rest of the desktop waits until it's over.
+    enterFocus() {
+        if (this._focus)
+            return;
+        const grab = Main.pushModal(this.layer, {actionMode: Shell.ActionMode.POPUP});
+        // On the scrim because the layer itself isn't reactive, so it gets no keys.
+        const keyId = this._scrim.connect('key-press-event', (_, event) => {
+            if (event.get_key_symbol() !== Clutter.KEY_Escape)
+                return Clutter.EVENT_PROPAGATE;
+            this.leaveFocus();
+            return Clutter.EVENT_STOP;
+        });
+        this._focus = {grab, keyId};
+        this._syncStack();
+
+        this._scrim.remove_all_transitions();
+        this._scrim.show();
+        this._scrim.grab_key_focus();
+        this._scrim.ease({opacity: 255, ...MOTION.fade});
+        this._cardsOverWindows();
+    }
+
+    // Cards jumping over open windows would be jarring, so they fade in. On a
+    // clear desktop they were already visible and stay still.
+    _cardsOverWindows() {
+        const workspace = global.workspace_manager.get_active_workspace();
+        const covered = global.display.get_tab_list(Meta.TabList.NORMAL, workspace)
+            .some(window => !window.minimized);
+        if (!covered)
+            return;
+        [...this._cards.values()].forEach((card, i) => card.appear(i * ARRIVAL_STAGGER / 2));
+    }
+
+    leaveFocus() {
+        if (!this._focus)
+            return;
+        if (this._composer)
+            this._composer.finish();
+        const {grab, keyId} = this._focus;
+        this._focus = null;
+        this._scrim.disconnect(keyId);
+        Main.popModal(grab);
+        this._syncStack();
+        this._scrim.remove_all_transitions();
+        this._scrim.ease({
+            opacity: 0,
+            ...MOTION.fade,
+            onComplete: () => this._scrim.hide(),
+        });
+        this._catchUp();
+    }
+
+    toggleFocus() {
+        if (this._focus)
+            this.leaveFocus();
+        else
+            this.enterFocus();
+    }
+
+    newNote() {
+        if (this._composer || this._gesture)
+            return;
+        const wasFocused = Boolean(this._focus);
+        this.enterFocus();
+        const grid = this._metrics();
+        const file = `.new-${GLib.get_monotonic_time()}`;
+        const card = new Card(file, parseNote('{}'));
+        this._wire(card);
+        this.layer.add_child(card.actor);
+        this._cards.set(file, card);
+
+        // Grows out of the empty slot it was started from.
+        const slot = this._addSlot(grid);
+        const start = this._rectOf({...slot, h: ADD_ROWS}, grid);
+        card.actor.set_position(start.x, start.y);
+        card.actor.set_size(start.width, start.height);
+        card.isNew = true;
+        this._layout = [...this._layout, {...slot, id: file}];
+        this._openComposer(card, wasFocused);
+    }
+
+    _edit(card) {
+        const wasFocused = Boolean(this._focus);
+        this.enterFocus();
+        this._openComposer(card, wasFocused);
+    }
+
+    _openComposer(card, keepFocus) {
+        card.setEditing(true);
+        this.layer.set_child_above_sibling(card.actor, null);
+        this._composer = new Composer(card, {
+            onGrow: () => this._fit(card),
+            onFinish: values => this._closeComposer(values, keepFocus),
+        });
+        this._composer.focus();
+        this._fit(card);
+    }
+
+    // The card follows what's being typed, moving its neighbours as it grows.
+    _fit(card) {
+        const grid = this._metrics();
+        const item = this._layout.find(i => i.id === card.file);
+        const h = this._rowsFor(card, item.w, grid);
+        this._layout = resize(this._layout, card.file, item.w, h, grid.cols, item.x);
+        this._applyLayout(grid);
+    }
+
+    _closeComposer(values, keepFocus) {
+        const {card} = this._composer;
+        const {note} = card;
+        this._composer = null;
+        card.setEditing(false);
+
+        const changed = values.title !== note.title || values.next !== note.next ||
+            values.items.join('\n') !== note.items.join('\n');
+        if (changed)
+            Object.assign(note, values, {date: isoDay(new Date())});
+        if (card.isNew && isBlank(note)) {
+            this._dropCard(card);
+        } else {
+            if (card.isNew)
+                this._adopt(card);
+            card.render();
+            this._fit(card);
+            if (changed) {
+                this._persist();
+                card.pulse();
+            }
+        }
+        if (!keepFocus)
+            this.leaveFocus();
+        this._catchUp();
+    }
+
+    // Gets its real file name only now that it has a title to name it after.
+    _adopt(card) {
+        const file = this._store.newFileName(card.note.title);
+        this._cards.delete(card.file);
+        this._layout = this._layout.map(i => (i.id === card.file ? {...i, id: file} : i));
+        card.file = file;
+        card.isNew = false;
+        this._cards.set(file, card);
+    }
+
+    _dropCard(card) {
+        const grid = this._metrics();
+        this._cards.delete(card.file);
+        this._layout = compact(this._layout.filter(i => i.id !== card.file), grid.cols);
+        card.vanish();
+        this._applyLayout(grid);
     }
 
     _catchUp() {
@@ -454,6 +680,8 @@ export class Board {
     }
 
     destroy() {
+        // Whatever was being typed still counts, say if the screen locked.
+        this.leaveFocus();
         if (this._gesture) {
             this._gesture.grab.dismiss();
             if (this._gesture.tiltId)

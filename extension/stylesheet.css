@@ -54,7 +54,8 @@
 
 .mural-card:hover { border-color: rgba(255, 255, 255, 0.16); }
 
-.mural-card-lifted {
+.mural-card-lifted,
+.mural-card-lifted:hover {
   background-color: rgba(12, 8, 16, 0.97);
   border-color: rgba(255, 74, 110, 0.45);
   box-shadow: 0 22px 48px rgba(0, 0, 0, 0.7);
@@ -91,3 +92,44 @@
 }
 
 .mural-grip:hover .mural-grip-mark { border-color: #ff4a6e; }
+
+/* Behind everything while the notes are in front of the windows. */
+.mural-scrim { background-color: rgba(6, 3, 10, 0.72); }
+
+.mural-entry {
+  padding: 0;
+  border: none;
+  background: none;
+  box-shadow: none;
+  color: inherit;
+  caret-color: #ff4a6e;
+  selected-color: #f5f2f7;
+  selection-background-color: rgba(229, 15, 61, 0.5);
+}
+
+.mural-entry StLabel.hint-text { color: rgba(236, 232, 240, 0.32); }
+
+.mural-entry.mural-title { color: #f5f2f7; }
+.mural-entry.mural-next-text { color: #f5f2f7; }
+
+.mural-card-editing,
+.mural-card-editing:hover {
+  background-color: rgba(12, 8, 16, 0.97);
+  border-color: rgba(255, 74, 110, 0.45);
+  box-shadow: 0 22px 48px rgba(0, 0, 0, 0.7);
+}
+
+/* An empty slot at the next free place on the grid. */
+.mural-add {
+  border-radius: 14px;
+  border: 1px solid rgba(255, 255, 255, 0.07);
+  background-color: rgba(12, 8, 16, 0.3);
+  color: rgba(236, 232, 240, 0.35);
+  font-size: 20px;
+}
+
+.mural-add:hover {
+  border-color: rgba(255, 74, 110, 0.45);
+  background-color: rgba(229, 15, 61, 0.08);
+  color: #ff4a6e;
+}

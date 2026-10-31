@@ -143,6 +143,17 @@ export class Card {
         return height + sideY;
     }
 
+    setEditing(editing) {
+        this.editing = editing;
+        if (editing)
+            this.actor.add_style_class_name('mural-card-editing');
+        else
+            this.actor.remove_style_class_name('mural-card-editing');
+        this.actor.set_cursor_type(editing ? Clutter.CursorType.DEFAULT : Clutter.CursorType.GRAB);
+        for (const grip of this.grips)
+            grip.visible = !editing;
+    }
+
     // Fades in from slightly below, a little late when arriving with others.
     appear(delay = 0) {
         const {actor} = this;
