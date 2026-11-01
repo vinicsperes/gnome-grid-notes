@@ -1,9 +1,9 @@
 {
-  "uuid": "mural@vinicsperes",
-  "name": "Mural",
+  "uuid": "grid-notes@desktop",
+  "name": "Grid Notes",
   "description": "Notes on your desktop that snap to a grid. Drag, resize and write them in place; each one is a plain JSON file.",
   "shell-version": ["50"],
-  "url": "https://github.com/vinicsperes/mural",
-  "settings-schema": "org.gnome.shell.extensions.mural",
+  "url": "https://github.com/vinicsperes/gnome-grid-notes",
+  "settings-schema": "org.gnome.shell.extensions.grid-notes",
   "version": 1
 }

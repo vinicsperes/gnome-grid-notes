@@ -33,8 +33,8 @@ test('a note with checkboxes shows them', async () => {
     await sleep(500);
     assert.deepEqual(board(`[...${card}._checks.keys()]`), [1, 2]);
     const child = i => board(`${card}._checks.get(${i}).mark.child.style_class`);
-    assert.equal(child(1), 'mural-check');
-    assert.equal(child(2), 'mural-check mural-check-done');
+    assert.equal(child(1), 'grid-notes-check');
+    assert.equal(child(2), 'grid-notes-check grid-notes-check-done');
 });
 
 test('clicking a checkbox ticks it and changes nothing else in the file', async () => {
@@ -45,7 +45,7 @@ test('clicking a checkbox ticks it and changes nothing else in the file', async 
         itens: ['from the market', {text: 'eggs', done: true}, {text: 'milk', done: true}],
     });
     assert.equal(board(`${card}.note.items[1].done`), true);
-    assert.equal(board(`${card}._checks.get(1).mark.child.style_class`), 'mural-check mural-check-done');
+    assert.equal(board(`${card}._checks.get(1).mark.child.style_class`), 'grid-notes-check grid-notes-check-done');
     assert.deepEqual(rect(FILE), before, 'the card did not move');
     assert.equal(board('b._gesture'), null);
 });
@@ -123,8 +123,8 @@ test('accented text stays in place through a tick', async () => {
     await sleep(500);
     await clickMark(0);
     assert.deepEqual(saved().items, [{text: 'ação às três', done: true}]);
-    if (process.env.MURAL_SHOT)
-        screenshot(process.env.MURAL_SHOT);
+    if (process.env.GRID_NOTES_SHOT)
+        screenshot(process.env.GRID_NOTES_SHOT);
 });
 
 test('no errors in the shell', () => {

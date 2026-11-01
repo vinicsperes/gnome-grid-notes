@@ -12,7 +12,7 @@ const STRINGS = {
         itemHint: 'What happened',
         nextHint: 'What comes next',
         confirmDelete: 'delete?',
-        saveFailed: 'Mural could not save a note',
+        saveFailed: 'Grid Notes could not save a note',
         saveFailedKeep: 'Your text is still there. Finish again to discard it.',
     },
     pt: {
@@ -25,7 +25,7 @@ const STRINGS = {
         itemHint: 'O que rolou',
         nextHint: 'O que vem depois',
         confirmDelete: 'apagar?',
-        saveFailed: 'O Mural não conseguiu salvar uma nota',
+        saveFailed: 'O Grid Notes não conseguiu salvar uma nota',
         saveFailedKeep: 'Seu texto continua aí. Finalize de novo para descartar.',
     },
 };

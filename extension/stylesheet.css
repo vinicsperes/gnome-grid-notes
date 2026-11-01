@@ -1,5 +1,5 @@
 /* Dark translucent cards. A single accent colour carries the "next step". */
-.mural-card {
+.grid-notes-card {
   border-radius: 14px;
   border: 1px solid rgba(255, 255, 255, 0.08);
   background-color: rgba(12, 8, 16, 0.88);
@@ -9,64 +9,64 @@
   font-size: 14px;
 }
 
-.mural-body { padding: 18px 20px 20px 20px; }
+.grid-notes-body { padding: 18px 20px 20px 20px; }
 
-.mural-head {
+.grid-notes-head {
   padding-bottom: 12px;
   margin-bottom: 12px;
   border-bottom: 1px solid rgba(255, 255, 255, 0.08);
 }
 
-.mural-title {
+.grid-notes-title {
   font-family: "Ubuntu Sans Mono", monospace;
   font-weight: bold;
   font-size: 18px;
   color: #f5f2f7;
 }
 
-.mural-date {
+.grid-notes-date {
   font-family: "Ubuntu Sans Mono", monospace;
   font-size: 12px;
   color: rgba(236, 232, 240, 0.55);
   margin-top: 2px;
 }
 
-.mural-row { spacing: 4px; margin-bottom: 6px; }
+.grid-notes-row { spacing: 4px; margin-bottom: 6px; }
 
 /* The same slot for a bullet or a checkbox, so text lines up either way. */
-.mural-mark { width: 18px; height: 18px; }
-.mural-bullet { color: rgba(236, 232, 240, 0.3); }
-.mural-mark:hover .mural-bullet { color: #ff4a6e; }
+.grid-notes-mark { width: 18px; height: 18px; }
+.grid-notes-bullet { color: rgba(236, 232, 240, 0.3); }
+.grid-notes-mark:hover .grid-notes-bullet { color: #ff4a6e; }
 
-.mural-check {
+.grid-notes-check {
   width: 13px;
   height: 13px;
   border-radius: 4px;
   border: 1px solid rgba(236, 232, 240, 0.5);
 }
 
-.mural-mark:hover .mural-check { border-color: #ff4a6e; }
+.grid-notes-mark:hover .grid-notes-check { border-color: #ff4a6e; }
 
-.mural-check-done {
+.grid-notes-check-done {
   background-color: #ff4a6e;
   border-color: #ff4a6e;
 }
 
-.mural-check-icon { icon-size: 11px; color: #12080f; }
+.grid-notes-check-icon { icon-size: 11px; color: #12080f; }
 
-.mural-item-done {
+.grid-notes-item-done {
   color: rgba(236, 232, 240, 0.42);
   text-decoration: line-through;
 }
 
-.mural-next {
+.grid-notes-next {
   margin-top: 8px;
   padding: 10px 12px;
   border-radius: 8px;
   background-color: rgba(229, 15, 61, 0.1);
 }
 
-.mural-next-head {
+.grid-notes-next-head {
   font-family: "Ubuntu Sans Mono", monospace;
   font-weight: bold;
   font-size: 11px;
@@ -75,53 +75,53 @@
   margin-bottom: 4px;
 }
 
-.mural-next-text { color: #f5f2f7; }
+.grid-notes-next-text { color: #f5f2f7; }
 
-.mural-card:hover { border-color: rgba(255, 255, 255, 0.16); }
+.grid-notes-card:hover { border-color: rgba(255, 255, 255, 0.16); }
 
-.mural-card-lifted,
-.mural-card-lifted:hover {
+.grid-notes-card-lifted,
+.grid-notes-card-lifted:hover {
   background-color: rgba(12, 8, 16, 0.97);
   border-color: rgba(255, 74, 110, 0.45);
   box-shadow: 0 22px 48px rgba(0, 0, 0, 0.7);
 }
 
 /* The slot a dragged card will land in. */
-.mural-ghost {
+.grid-notes-ghost {
   border-radius: 14px;
   border: 1px solid rgba(255, 74, 110, 0.4);
   background-color: rgba(229, 15, 61, 0.08);
 }
 
 /* A corner mark that reads as "pull here", with a larger area to grab. */
-.mural-grip {
+.grid-notes-grip {
   width: 26px;
   height: 26px;
 }
 
-.mural-grip-mark {
+.grid-notes-grip-mark {
   width: 10px;
   height: 10px;
   margin: 6px;
   border-bottom: 2px solid rgba(236, 232, 240, 0.45);
 }
 
-.mural-grip-mark-right {
+.grid-notes-grip-mark-right {
   border-right: 2px solid rgba(236, 232, 240, 0.45);
   border-radius: 0 0 6px 0;
 }
 
-.mural-grip-mark-left {
+.grid-notes-grip-mark-left {
   border-left: 2px solid rgba(236, 232, 240, 0.45);
   border-radius: 0 0 0 6px;
 }
 
-.mural-grip:hover .mural-grip-mark { border-color: #ff4a6e; }
+.grid-notes-grip:hover .grid-notes-grip-mark { border-color: #ff4a6e; }
 
 /* Behind everything while the notes are in front of the windows. */
-.mural-scrim { background-color: rgba(6, 3, 10, 0.72); }
+.grid-notes-scrim { background-color: rgba(6, 3, 10, 0.72); }
 
-.mural-entry {
+.grid-notes-entry {
   padding: 0;
   border: none;
   background: none;
@@ -132,21 +132,21 @@
   selection-background-color: rgba(229, 15, 61, 0.5);
 }
 
-.mural-entry StLabel.hint-text { color: rgba(236, 232, 240, 0.32); }
+.grid-notes-entry StLabel.hint-text { color: rgba(236, 232, 240, 0.32); }
 
-.mural-entry.mural-title { color: #f5f2f7; }
-.mural-entry.mural-next-text { color: #f5f2f7; }
-.mural-entry.mural-item-done { color: rgba(236, 232, 240, 0.42); }
+.grid-notes-entry.grid-notes-title { color: #f5f2f7; }
+.grid-notes-entry.grid-notes-next-text { color: #f5f2f7; }
+.grid-notes-entry.grid-notes-item-done { color: rgba(236, 232, 240, 0.42); }
 
-.mural-card-editing,
-.mural-card-editing:hover {
+.grid-notes-card-editing,
+.grid-notes-card-editing:hover {
   background-color: rgba(12, 8, 16, 0.97);
   border-color: rgba(255, 74, 110, 0.45);
   box-shadow: 0 22px 48px rgba(0, 0, 0, 0.7);
 }
 
 /* An empty slot at the next free place on the grid. */
-.mural-add {
+.grid-notes-add {
   border-radius: 14px;
   border: 1px solid rgba(255, 255, 255, 0.07);
   background-color: rgba(12, 8, 16, 0.3);
@@ -154,13 +154,13 @@
   font-size: 20px;
 }
 
-.mural-add:hover {
+.grid-notes-add:hover {
   border-color: rgba(255, 74, 110, 0.45);
   background-color: rgba(229, 15, 61, 0.08);
   color: #ff4a6e;
 }
 
-.mural-close {
+.grid-notes-close {
   min-width: 22px;
   min-height: 22px;
   margin: 8px;
@@ -170,13 +170,13 @@
   font-size: 14px;
 }
 
-.mural-close:hover {
+.grid-notes-close:hover {
   background-color: rgba(255, 255, 255, 0.08);
   color: #f5f2f7;
 }
 
-.mural-close-armed,
-.mural-close-armed:hover {
+.grid-notes-close-armed,
+.grid-notes-close-armed:hover {
   background-color: rgba(229, 15, 61, 0.9);
   color: #fff;
   font-size: 12px;

@@ -9,7 +9,7 @@ import {NoteStore} from './lib/store.js';
 
 const SHORTCUT_MODES = Shell.ActionMode.NORMAL | Shell.ActionMode.POPUP;
 
-export default class MuralExtension extends Extension {
+export default class GridNotesExtension extends Extension {
     enable() {
         // First, since it's the one step that can fail on a broken install.
         const settings = this.getSettings();

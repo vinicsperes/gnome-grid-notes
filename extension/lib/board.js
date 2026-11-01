@@ -54,7 +54,7 @@ export class Board {
         this._composer = null;
         this._focus = null;
 
-        this.layer = new Clutter.Actor({name: 'mural'});
+        this.layer = new Clutter.Actor({name: 'grid-notes'});
         global.window_group.add_child(this.layer);
         this._buildScrim();
         this._buildGridHints();
@@ -112,7 +112,7 @@ export class Board {
     _buildScrim() {
         const {width, height} = global.stage;
         this._scrim = new St.Widget({
-            style_class: 'mural-scrim',
+            style_class: 'grid-notes-scrim',
             reactive: true,
             width,
             height,
@@ -130,7 +130,7 @@ export class Board {
     }
 
     _buildAddButton() {
-        this._add = new St.Button({style_class: 'mural-add', label: '+'});
+        this._add = new St.Button({style_class: 'grid-notes-add', label: '+'});
         this._add.connect('clicked', () => this.newNote());
         this.layer.add_child(this._add);
     }
@@ -169,7 +169,7 @@ export class Board {
         this._dots.connect('repaint', area => this._paintDots(area));
         this.layer.add_child(this._dots);
 
-        this._ghost = new St.Widget({style_class: 'mural-ghost', opacity: 0, visible: false});
+        this._ghost = new St.Widget({style_class: 'grid-notes-ghost', opacity: 0, visible: false});
         this.layer.add_child(this._ghost);
     }
 
@@ -507,7 +507,7 @@ export class Board {
         const {actor} = card;
         const grid = this._metrics();
         card.settle();
-        actor.add_style_class_name('mural-card-lifted');
+        actor.add_style_class_name('grid-notes-card-lifted');
         actor.set_cursor_type(Clutter.CursorType.GRABBING);
         this.layer.set_child_above_sibling(actor, null);
         actor.ease({scale_x: 1.03, scale_y: 1.03, ...MOTION.lift});
@@ -572,7 +572,7 @@ export class Board {
         if (gesture.lifted) {
             const grid = this._metrics();
             const rect = this._rectOf(this._layout.find(i => i.id === card.file), grid);
-            actor.remove_style_class_name('mural-card-lifted');
+            actor.remove_style_class_name('grid-notes-card-lifted');
             actor.set_cursor_type(Clutter.CursorType.GRAB);
             actor.remove_all_transitions();
             actor.ease({...rect, scale_x: 1, scale_y: 1, rotation_angle_z: 0, ...MOTION.drop});

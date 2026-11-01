@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <schemalist>
-  <schema id="org.gnome.shell.extensions.mural" path="/org/gnome/shell/extensions/mural/">
+  <schema id="org.gnome.shell.extensions.grid-notes" path="/org/gnome/shell/extensions/grid-notes/">
     <key name="new-note" type="as">
       <default><![CDATA[['<Control><Alt>n']]]></default>
       <summary>Write a new note</summary>

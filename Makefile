@@ -1,4 +1,4 @@
-UUID := mural@vinicsperes
+UUID := grid-notes@desktop
 EXT_DIR := $(or $(XDG_DATA_HOME),$(HOME)/.local/share)/gnome-shell/extensions/$(UUID)
 
 .PHONY: schemas install uninstall pack test e2e
@@ -16,7 +16,7 @@ uninstall:
 
 pack: schemas
 	mkdir -p build
-	gnome-extensions pack extension --force --out-dir=build --extra-source=lib --schema=schemas/org.gnome.shell.extensions.mural.gschema.xml
+	gnome-extensions pack extension --force --out-dir=build --extra-source=lib --schema=schemas/org.gnome.shell.extensions.grid-notes.gschema.xml
 
 test:
 	node --test tests/*.test.js

@@ -13,7 +13,7 @@ const {KEY_Return, KEY_KP_Enter, KEY_Escape, KEY_Tab, KEY_ISO_Left_Tab, KEY_Back
 
 function buildEntry(text, hint, styleClass) {
     const entry = new St.Entry({
-        style_class: `mural-entry ${styleClass}`,
+        style_class: `grid-notes-entry ${styleClass}`,
         text,
         hint_text: hint,
         can_focus: true,
@@ -56,16 +56,16 @@ export class Composer {
         const {note} = card;
         card.body.destroy_all_children();
 
-        this._title = this._wire(buildEntry(note.title, strings.titleHint, 'mural-title'));
+        this._title = this._wire(buildEntry(note.title, strings.titleHint, 'grid-notes-title'));
         const head = new St.BoxLayout({
             orientation: Clutter.Orientation.VERTICAL,
-            style_class: 'mural-head',
+            style_class: 'grid-notes-head',
         });
         head.add_child(this._title);
         // Not editable, but it holds its line: without it all the text below
         // would jump up the moment writing starts.
         if (note.date)
-            head.add_child(wrapped(whenText(note.date), 'mural-date'));
+            head.add_child(wrapped(whenText(note.date), 'grid-notes-date'));
         card.body.add_child(head);
 
         for (const item of note.items)
@@ -102,10 +102,10 @@ export class Composer {
     }
 
     _addRow(text = '', after = null, animate = false, done = null) {
-        const box = new St.BoxLayout({style_class: 'mural-row'});
+        const box = new St.BoxLayout({style_class: 'grid-notes-row'});
         const mark = buildMark(done);
         box.add_child(mark);
-        const entry = this._wire(buildEntry(text, strings.itemHint, 'mural-item'));
+        const entry = this._wire(buildEntry(text, strings.itemHint, 'grid-notes-item'));
         box.add_child(entry);
         setDoneStyle(entry, done);
 
@@ -136,12 +136,12 @@ export class Composer {
     }
 
     _showNext(text = '') {
-        this._next = this._wire(buildEntry(text, strings.nextHint, 'mural-next-text'));
+        this._next = this._wire(buildEntry(text, strings.nextHint, 'grid-notes-next-text'));
         this._nextBox = new St.BoxLayout({
             orientation: Clutter.Orientation.VERTICAL,
-            style_class: 'mural-next',
+            style_class: 'grid-notes-next',
         });
-        this._nextBox.add_child(new St.Label({text: strings.next, style_class: 'mural-next-head'}));
+        this._nextBox.add_child(new St.Label({text: strings.next, style_class: 'grid-notes-next-head'}));
         this._nextBox.add_child(this._next);
         this.card.body.add_child(this._nextBox);
     }

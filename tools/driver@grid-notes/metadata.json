@@ -1,0 +1,6 @@
+{
+  "uuid": "driver@grid-notes",
+  "name": "Grid Notes test driver",
+  "description": "Drives the Grid Notes extension in headless end-to-end tests.",
+  "shell-version": ["50"]
+}

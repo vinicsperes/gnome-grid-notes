@@ -8,7 +8,7 @@ const corner = r => [r.x + r.width - 3, r.y + r.height - 3];
 test('the grip is under the pointer at the bottom right corner', () => {
     const [x, y] = corner(rect('1-launch.json'));
     const style = board(`global.stage.get_actor_at_pos(Clutter.PickMode.REACTIVE, ${x}, ${y}).style_class`);
-    assert.equal(style, 'mural-grip');
+    assert.equal(style, 'grid-notes-grip');
 });
 
 test('pulling the right grip widens the card by whole columns', async () => {

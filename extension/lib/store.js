@@ -14,7 +14,7 @@ const decoder = new TextDecoder('utf-8', {fatal: true});
 const encoder = new TextEncoder();
 
 export class NoteStore {
-    constructor(path = GLib.build_filenamev([GLib.get_user_data_dir(), 'mural'])) {
+    constructor(path = GLib.build_filenamev([GLib.get_user_data_dir(), 'grid-notes'])) {
         this._dir = Gio.File.new_for_path(path);
         try {
             this._dir.make_directory_with_parents(null);

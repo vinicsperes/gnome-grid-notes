@@ -41,7 +41,7 @@ export class Card {
         this.userRows = note.grid?.h ?? 0;
 
         this.actor = new St.Widget({
-            style_class: 'mural-card',
+            style_class: 'grid-notes-card',
             layout_manager: new Clutter.BinLayout(),
             reactive: true,
             track_hover: true,
@@ -49,7 +49,7 @@ export class Card {
         });
         this.actor.set_cursor_type(Clutter.CursorType.GRAB);
         this.body = new St.BoxLayout({
-            style_class: 'mural-body',
+            style_class: 'grid-notes-body',
             orientation: Clutter.Orientation.VERTICAL,
             x_expand: true,
             y_expand: true,
@@ -60,7 +60,7 @@ export class Card {
         this.grips = [this._buildGrip('right'), this._buildGrip('left')];
 
         this.close = new St.Button({
-            style_class: 'mural-close',
+            style_class: 'grid-notes-close',
             label: '×',
             opacity: 0,
             x_expand: true,
@@ -98,7 +98,7 @@ export class Card {
         }
         this._armed = true;
         this.close.label = strings.confirmDelete;
-        this.close.add_style_class_name('mural-close-armed');
+        this.close.add_style_class_name('grid-notes-close-armed');
         this._armedId = GLib.timeout_add(GLib.PRIORITY_DEFAULT, ARMED_MS, () => {
             this._armedId = 0;
             this._disarmClose();
@@ -112,7 +112,7 @@ export class Card {
         this._armedId = 0;
         this._armed = false;
         this.close.label = '×';
-        this.close.remove_style_class_name('mural-close-armed');
+        this.close.remove_style_class_name('grid-notes-close-armed');
     }
 
     // One on each bottom corner: a card against the screen edge can only grow
@@ -120,7 +120,7 @@ export class Card {
     _buildGrip(side) {
         const align = side === 'right' ? Clutter.ActorAlign.END : Clutter.ActorAlign.START;
         const grip = new St.Widget({
-            style_class: 'mural-grip',
+            style_class: 'grid-notes-grip',
             layout_manager: new Clutter.BinLayout(),
             reactive: true,
             track_hover: true,
@@ -132,7 +132,7 @@ export class Card {
         });
         grip.side = side;
         grip.add_child(new St.Widget({
-            style_class: `mural-grip-mark mural-grip-mark-${side}`,
+            style_class: `grid-notes-grip-mark grid-notes-grip-mark-${side}`,
             x_expand: true,
             y_expand: true,
             x_align: align,
@@ -150,23 +150,23 @@ export class Card {
 
         const head = new St.BoxLayout({
             orientation: Clutter.Orientation.VERTICAL,
-            style_class: 'mural-head',
+            style_class: 'grid-notes-head',
         });
         // A broken file has no title of its own, but still needs telling apart.
         const title = note.title || (this.error ? this.file : '');
         if (title)
-            head.add_child(wrapped(title, 'mural-title'));
+            head.add_child(wrapped(title, 'grid-notes-title'));
         if (note.date)
-            head.add_child(wrapped(whenText(note.date), 'mural-date'));
+            head.add_child(wrapped(whenText(note.date), 'grid-notes-date'));
         if (title || note.date)
             this.body.add_child(head);
 
         const items = this.error ? [strings.unreadable(this.error)] : note.items;
         this._checks = new Map();
         items.forEach((item, index) => {
-            const row = new St.BoxLayout({style_class: 'mural-row'});
+            const row = new St.BoxLayout({style_class: 'grid-notes-row'});
             const done = itemDone(item);
-            const label = wrapped(itemText(item), 'mural-item');
+            const label = wrapped(itemText(item), 'grid-notes-item');
             if (done === null) {
                 row.add_child(staticBullet());
             } else {
@@ -183,10 +183,10 @@ export class Card {
         if (note.next) {
             const next = new St.BoxLayout({
                 orientation: Clutter.Orientation.VERTICAL,
-                style_class: 'mural-next',
+                style_class: 'grid-notes-next',
             });
-            next.add_child(new St.Label({text: strings.next, style_class: 'mural-next-head'}));
-            next.add_child(wrapped(note.next, 'mural-next-text'));
+            next.add_child(new St.Label({text: strings.next, style_class: 'grid-notes-next-head'}));
+            next.add_child(wrapped(note.next, 'grid-notes-next-text'));
             this.body.add_child(next);
         }
     }
@@ -222,9 +222,9 @@ export class Card {
     setEditing(editing) {
         this.editing = editing;
         if (editing)
-            this.actor.add_style_class_name('mural-card-editing');
+            this.actor.add_style_class_name('grid-notes-card-editing');
         else
-            this.actor.remove_style_class_name('mural-card-editing');
+            this.actor.remove_style_class_name('grid-notes-card-editing');
         this.actor.set_cursor_type(editing ? Clutter.CursorType.DEFAULT : Clutter.CursorType.GRAB);
         for (const control of [...this.grips, this.close])
             control.visible = !editing;

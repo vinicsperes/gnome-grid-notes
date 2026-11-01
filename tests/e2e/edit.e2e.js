@@ -42,7 +42,7 @@ function overlap() {
 
 test('double clicking a note leaves it and any uncovered note still', async () => {
     spawn('gjs', ['-m', fileURLToPath(new URL('window.js', import.meta.url))], {
-        env: {...process.env, WAYLAND_DISPLAY: 'mural-0', GDK_BACKEND: 'wayland', MURAL_WINDOW: '500x300'},
+        env: {...process.env, WAYLAND_DISPLAY: 'grid-notes-0', GDK_BACKEND: 'wayland', GRID_NOTES_WINDOW: '500x300'},
         stdio: 'ignore',
         detached: true,
     }).unref();

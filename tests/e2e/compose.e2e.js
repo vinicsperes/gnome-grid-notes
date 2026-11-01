@@ -128,7 +128,7 @@ test('the shortcut brings notes forward and escape sends them back', async () =>
     board('b.toggleFocus()');
     await sleep(300);
     assert.equal(board('b._focus !== null'), true);
-    assert.equal(board('global.window_group.get_children().at(-1).get_name()'), 'mural');
+    assert.equal(board('global.window_group.get_children().at(-1).get_name()'), 'grid-notes');
     await tap('esc');
     await sleep(300);
     assert.equal(board('b._focus'), null);
@@ -175,10 +175,10 @@ test('turning off in the middle of writing keeps what was typed', async () => {
     board('b.newNote()');
     await sleep(300);
     await type('Rescued');
-    evaluate("Main.extensionManager.lookup('mural@vinicsperes').stateObj.disable(); 0");
+    evaluate("Main.extensionManager.lookup('grid-notes@desktop').stateObj.disable(); 0");
     await sleep(300);
     assert.equal(notes()['rescued.json'].title, 'Rescued');
-    evaluate("Main.extensionManager.lookup('mural@vinicsperes').stateObj.enable(); 0");
+    evaluate("Main.extensionManager.lookup('grid-notes@desktop').stateObj.enable(); 0");
     await sleep(600);
     assert.ok(layout()['rescued.json']);
 });
@@ -193,7 +193,7 @@ test('reaching for another card while writing saves the note first', async () =>
     assert.equal(board('b._composer'), null);
     assert.equal(notes()['half.json'].title, 'Half');
     assert.ok(notes()['3-synth.json'], 'one click never deletes');
-    assert.equal(readdirSync(join(process.env.MURAL_RUN, 'data', 'mural')).filter(f => f.startsWith('.')).length, 0);
+    assert.equal(readdirSync(join(process.env.GRID_NOTES_RUN, 'data', 'grid-notes')).filter(f => f.startsWith('.')).length, 0);
     await drive('driver.move(100, 900); await driver.wait(150);');
 });
 
@@ -206,9 +206,9 @@ test('a note with no title shows just its date up top', async () => {
     await sleep(400);
     assert.deepEqual(notes()['note.json'].items, ['just a bullet']);
     const head = `b._cards.get('note.json').body.get_first_child()`;
-    assert.equal(board(`${head}.style_class`), 'mural-head');
+    assert.equal(board(`${head}.style_class`), 'grid-notes-head');
     assert.equal(board(`${head}.get_n_children()`), 1);
-    assert.equal(board(`${head}.get_first_child().style_class`), 'mural-date');
+    assert.equal(board(`${head}.get_first_child().style_class`), 'grid-notes-date');
 });
 
 test('a new note never lands on a file created while writing it', async () => {
@@ -316,7 +316,7 @@ test('the focus shortcut waits for a drag to end', async () => {
 });
 
 test('a new note that cannot be saved keeps its text until it can', async () => {
-    const dir = join(process.env.MURAL_RUN, 'data', 'mural');
+    const dir = join(process.env.GRID_NOTES_RUN, 'data', 'grid-notes');
     board('b.newNote()');
     await sleep(300);
     await type('Important');
@@ -334,7 +334,7 @@ test('a new note that cannot be saved keeps its text until it can', async () => 
 });
 
 test('a second failure gives up and gives the desktop back', async () => {
-    const dir = join(process.env.MURAL_RUN, 'data', 'mural');
+    const dir = join(process.env.GRID_NOTES_RUN, 'data', 'grid-notes');
     const before = readdirSync(dir).length;
     board('b.newNote()');
     await sleep(300);
@@ -353,7 +353,7 @@ test('a second failure gives up and gives the desktop back', async () => {
 });
 
 test('a failed edit tells you and still gives the desktop back', async () => {
-    const dir = join(process.env.MURAL_RUN, 'data', 'mural');
+    const dir = join(process.env.GRID_NOTES_RUN, 'data', 'grid-notes');
     const r = rect('clear.json');
     await drive(`await driver.click(${r.x + 150}, ${r.y + 20}, 2);`);
     await sleep(300);

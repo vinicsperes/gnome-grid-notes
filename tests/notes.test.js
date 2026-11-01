@@ -8,10 +8,10 @@ import {
 
 test('reads a complete note', () => {
     const note = parseNote(JSON.stringify({
-        title: 'Mural', date: '2026-10-29', items: ['a', 'b'], next: 'c',
+        title: 'Grid Notes', date: '2026-10-29', items: ['a', 'b'], next: 'c',
         grid: {x: 2, y: 4, w: 3, h: 9},
     }));
-    assert.equal(note.title, 'Mural');
+    assert.equal(note.title, 'Grid Notes');
     assert.deepEqual(note.items, ['a', 'b']);
     assert.equal(note.next, 'c');
     assert.deepEqual(note.grid, {x: 2, y: 4, w: 3, h: 9});

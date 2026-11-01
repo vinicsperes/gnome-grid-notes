@@ -17,7 +17,7 @@ export default class Driver extends Extension {
         // Unsafe mode lets any program on the session bus run code in the
         // compositor. Fine in a throwaway shell, dangerous in a real session,
         // so this does nothing unless tools/headless.sh started it.
-        if (!GLib.getenv('MURAL_RUN'))
+        if (!GLib.getenv('GRID_NOTES_RUN'))
             return;
         global.context.unsafe_mode = true;
         globalThis.Clutter = Clutter;

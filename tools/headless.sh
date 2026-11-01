@@ -5,7 +5,7 @@
 #
 #   tools/headless.sh [--data DIR] [--size WxH] COMMAND...
 #
-# COMMAND sees MURAL_RUN (the sandbox) and can talk to the shell over D-Bus.
+# COMMAND sees GRID_NOTES_RUN (the sandbox) and can talk to the shell over D-Bus.
 set -euo pipefail
 
 root="$(cd "$(dirname "$0")/.." && pwd)"
@@ -19,7 +19,7 @@ while [[ ${1:-} == --* ]]; do
     esac
 done
 
-run="$(mktemp -d "${TMPDIR:-/tmp}/mural-run.XXXXXX")"
+run="$(mktemp -d "${TMPDIR:-/tmp}/grid-notes-run.XXXXXX")"
 chmod 700 "$run"
 cleanup() {
     # The document portal and gvfs leave FUSE mounts in the runtime folder.
@@ -29,14 +29,14 @@ cleanup() {
     rm -rf "$run" 2>/dev/null || { sleep 1; rm -rf "$run"; }
 }
 trap cleanup EXIT
-mkdir -p "$run/data/gnome-shell/extensions" "$run/config" "$run/cache" "$run/runtime" "$run/data/mural" "$run/home"
+mkdir -p "$run/data/gnome-shell/extensions" "$run/config" "$run/cache" "$run/runtime" "$run/data/grid-notes" "$run/home"
 chmod 700 "$run/runtime"
 glib-compile-schemas "$root/extension/schemas"
-ln -s "$root/extension" "$run/data/gnome-shell/extensions/mural@vinicsperes"
-ln -s "$root/tools/driver@mural" "$run/data/gnome-shell/extensions/driver@mural"
-[[ -n $seed ]] && cp "$seed"/*.json "$run/data/mural/"
+ln -s "$root/extension" "$run/data/gnome-shell/extensions/grid-notes@desktop"
+ln -s "$root/tools/driver@grid-notes" "$run/data/gnome-shell/extensions/driver@grid-notes"
+[[ -n $seed ]] && cp "$seed"/*.json "$run/data/grid-notes/"
 
-export MURAL_RUN="$run" MURAL_ROOT="$root"
+export GRID_NOTES_RUN="$run" GRID_NOTES_ROOT="$root"
 export HOME="$run/home"
 export XDG_DATA_HOME="$run/data" XDG_CONFIG_HOME="$run/config" XDG_CACHE_HOME="$run/cache"
 export XDG_RUNTIME_DIR="$run/runtime"
@@ -49,12 +49,12 @@ dbus-run-session -- bash -c '
     exec 2>&3
     gsettings set org.gnome.shell disable-user-extensions false
     gsettings set org.gnome.shell welcome-dialog-last-shown-version "999"
-    gsettings set org.gnome.desktop.background picture-uri "file://$MURAL_ROOT/tools/wallpaper.png"
-    gsettings set org.gnome.desktop.background picture-uri-dark "file://$MURAL_ROOT/tools/wallpaper.png"
+    gsettings set org.gnome.desktop.background picture-uri "file://$GRID_NOTES_ROOT/tools/wallpaper.png"
+    gsettings set org.gnome.desktop.background picture-uri-dark "file://$GRID_NOTES_ROOT/tools/wallpaper.png"
     gsettings set org.gnome.desktop.interface color-scheme prefer-dark
-    gsettings set org.gnome.shell enabled-extensions "[\"driver@mural\", \"mural@vinicsperes\"${MURAL_DING:+, \"ding@rastersoft.com\"}]"
-    gnome-shell --headless --wayland --no-x11 --wayland-display=mural-0 \
-        --virtual-monitor "$0" >"$MURAL_RUN/shell.log" 2>&1 &
+    gsettings set org.gnome.shell enabled-extensions "[\"driver@grid-notes\", \"grid-notes@desktop\"${GRID_NOTES_DING:+, \"ding@rastersoft.com\"}]"
+    gnome-shell --headless --wayland --no-x11 --wayland-display=grid-notes-0 \
+        --virtual-monitor "$0" >"$GRID_NOTES_RUN/shell.log" 2>&1 &
     shell=$!
     trap "kill $shell 2>/dev/null || true" EXIT
     for _ in $(seq 100); do

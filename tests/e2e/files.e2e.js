@@ -9,7 +9,7 @@ import {
     board, drive, errors, evaluate, layout, notes, rect, removeNote, sleep, writeNote,
 } from './shell.js';
 
-const raw = name => readFileSync(join(process.env.MURAL_RUN, 'data', 'mural', name), 'utf8');
+const raw = name => readFileSync(join(process.env.GRID_NOTES_RUN, 'data', 'grid-notes', name), 'utf8');
 const press = (x, y) => drive(`driver.move(${x}, ${y}); await driver.wait(80); driver.press(); await driver.wait(40);
     for (let i = 1; i <= 8; i++) { driver.move(${x} + i * 3, ${y}); await driver.wait(16); }`);
 
@@ -51,7 +51,7 @@ test('deleting a file removes its card and closes the gap', async () => {
     await sleep(900);
     assert.equal(layout()['8-new.json'], undefined);
     assert.equal(Object.keys(layout()).length, 7);
-    assert.equal(board(`b.layer.get_children().filter(c => c.style_class === 'mural-card').length`), 7);
+    assert.equal(board(`b.layer.get_children().filter(c => c.style_class === 'grid-notes-card').length`), 7);
     assert.ok(y > 0);
 });
 
@@ -108,7 +108,7 @@ test('moving a card never rewrites the contents of its file', async () => {
 });
 
 test('things that are not note files are safely refused', async () => {
-    execFileSync('mkfifo', [join(process.env.MURAL_RUN, 'data', 'mural', 'pipe.json')]);
+    execFileSync('mkfifo', [join(process.env.GRID_NOTES_RUN, 'data', 'grid-notes', 'pipe.json')]);
     writeNote('huge.json', JSON.stringify({title: 'x'.repeat(300 * 1024)}));
     await sleep(900);
     assert.equal(board(`b._cards.get('pipe.json').error !== null`), true);
@@ -119,7 +119,7 @@ test('things that are not note files are safely refused', async () => {
 });
 
 test('a file that is not valid text is refused and left untouched', async () => {
-    const dir = join(process.env.MURAL_RUN, 'data', 'mural');
+    const dir = join(process.env.GRID_NOTES_RUN, 'data', 'grid-notes');
     const bytes = Buffer.from('{"title": "Ol\xe1", "items": []}', 'latin1');
     writeFileSync(join(dir, 'latin1.json'), bytes);
     await sleep(900);
@@ -134,7 +134,7 @@ test('a file that is not valid text is refused and left untouched', async () => 
 
 test('a card whose file breaks for a moment stays where it was', async () => {
     const before = layout()['1-launch.json'];
-    const good = readFileSync(join(process.env.MURAL_RUN, 'data', 'mural', '1-launch.json'), 'utf8');
+    const good = readFileSync(join(process.env.GRID_NOTES_RUN, 'data', 'grid-notes', '1-launch.json'), 'utf8');
     writeNote('1-launch.json', '{ half written');
     await sleep(700);
     assert.equal(board(`b._cards.get('1-launch.json').error !== null`), true);
@@ -188,7 +188,7 @@ test('an empty board still offers a way to start', async () => {
     for (const name of Object.keys(notes()))
         removeNote(name);
     await sleep(800);
-    const state = "Main.extensionManager.lookup('mural@vinicsperes').stateObj";
+    const state = "Main.extensionManager.lookup('grid-notes@desktop').stateObj";
     evaluate(`${state}.disable(); ${state}.enable(); 0`);
     await sleep(500);
     const add = board('(a => ({x: a.x, y: a.y, w: a.width, o: a.opacity}))(b._add)');

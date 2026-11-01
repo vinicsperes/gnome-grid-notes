@@ -33,7 +33,7 @@ test('a second click deletes the note and the rest close the gap', async () => {
     assert.equal(notes()['1-launch.json'], undefined);
     assert.equal(layout()['1-launch.json'], undefined);
     assert.ok(layout()['5-website.json'].y < before['5-website.json'].y);
-    assert.equal(board(`b.layer.get_children().filter(c => c.style_class === 'mural-card').length`), 6);
+    assert.equal(board(`b.layer.get_children().filter(c => c.style_class === 'grid-notes-card').length`), 6);
 });
 
 test('deleting does not start a drag', () => {

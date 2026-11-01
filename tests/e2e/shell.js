@@ -4,7 +4,7 @@ import {readdirSync, readFileSync, writeFileSync, rmSync} from 'node:fs';
 import {join} from 'node:path';
 import {setTimeout as sleep} from 'node:timers/promises';
 
-const BOARD = "Main.extensionManager.lookup('mural@vinicsperes').stateObj._board";
+const BOARD = "Main.extensionManager.lookup('grid-notes@desktop').stateObj._board";
 
 function gdbus(path, method, ...args) {
     return execFileSync('gdbus', ['call', '--session', '-d', 'org.gnome.Shell',
@@ -54,7 +54,7 @@ export function rect(id) {
         `(b._cards.get(${JSON.stringify(id)}).actor)`);
 }
 
-const dataDir = () => join(process.env.MURAL_RUN, 'data', 'mural');
+const dataDir = () => join(process.env.GRID_NOTES_RUN, 'data', 'grid-notes');
 
 export const notes = () => Object.fromEntries(readdirSync(dataDir())
     .filter(name => name.endsWith('.json'))
@@ -66,8 +66,8 @@ export const writeNote = (name, value) =>
 export const removeNote = name => rmSync(join(dataDir(), name), {force: true});
 
 export function errors() {
-    const log = readFileSync(join(process.env.MURAL_RUN, 'shell.log'), 'utf8');
-    return log.split('\n').filter(line => /JS ERROR|mural.*(Error|error)|Gjs-CRITICAL|Clutter-CRITICAL|St-CRITICAL/.test(line));
+    const log = readFileSync(join(process.env.GRID_NOTES_RUN, 'shell.log'), 'utf8');
+    return log.split('\n').filter(line => /JS ERROR|grid-notes.*(Error|error)|Gjs-CRITICAL|Clutter-CRITICAL|St-CRITICAL/.test(line));
 }
 
 export {sleep};
