@@ -4,6 +4,10 @@
 //
 //   {"title": "...", "date": "2026-10-29", "items": ["..."], "next": "..."}
 //
+// An item is either plain text, shown as a bullet, or a checkbox:
+//
+//   {"text": "...", "done": false}
+//
 // Saving always starts from the text on disk and changes only the fields being
 // saved, so hand edits, unusual values and fields from other tools all survive.
 
@@ -44,11 +48,22 @@ function asText(value) {
     return typeof value === 'object' ? JSON.stringify(value) : String(value);
 }
 
+const isCheckbox = value => Boolean(value) && typeof value === 'object' &&
+    typeof value.text === 'string' && typeof value.done === 'boolean';
+
 function asItems(value) {
     if (value === undefined || value === null)
         return [];
-    return (Array.isArray(value) ? value : [value]).map(asText);
+    return (Array.isArray(value) ? value : [value]).map(item =>
+        (isCheckbox(item) ? {text: item.text, done: item.done} : asText(item)));
 }
+
+export const itemText = item => (typeof item === 'string' ? item : item.text);
+
+// True or false for a checkbox, null for a plain bullet.
+export const itemDone = item => (typeof item === 'string' ? null : item.done);
+
+export const makeItem = (text, done) => (done === null ? text : {text, done});
 
 function validGrid(grid) {
     if (!grid || typeof grid !== 'object')
@@ -83,6 +98,18 @@ export function withGrid(text, grid) {
     return render({...raw, grid});
 }
 
+// The note's text with one checkbox ticked or cleared, or the same text if that
+// line isn't there any more: the file may have changed since it was last read.
+export function withDone(text, index, label, done) {
+    const raw = parseObject(text);
+    const key = Object.hasOwn(raw, 'items') ? 'items' : 'itens';
+    const items = raw[key];
+    if (!Array.isArray(items) || !isCheckbox(items[index]) ||
+        items[index].text !== label || items[index].done === done)
+        return text;
+    return render({...raw, [key]: items.with(index, {...items[index], done})});
+}
+
 const present = value => value !== undefined && value !== null && value !== '';
 
 // The note's text with some of its contents changed. Starts from `text` when
@@ -109,7 +136,7 @@ export function withContent(text, changes, grid = null) {
 }
 
 export function isBlank(note) {
-    return !note.title.trim() && !note.next.trim() && !note.items.some(item => item.trim());
+    return !note.title.trim() && !note.next.trim() && !note.items.some(item => itemText(item).trim());
 }
 
 // "Meu Projeto!" -> "meu-projeto.json", avoiding names already taken.

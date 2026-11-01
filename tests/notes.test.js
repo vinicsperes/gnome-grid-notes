@@ -2,7 +2,8 @@ import assert from 'node:assert/strict';
 import {test} from 'node:test';
 
 import {
-    daysSince, emptyNote, fileNameFor, isBlank, isoDay, parseNote, withContent, withGrid,
+    daysSince, emptyNote, fileNameFor, isBlank, isoDay, itemDone, itemText, makeItem, parseNote,
+    withContent, withDone, withGrid,
 } from '../extension/lib/notes.js';
 
 test('reads a complete note', () => {
@@ -38,6 +39,55 @@ test('odd values are shown instead of dropped', () => {
     assert.deepEqual(note.items, ['1', 'x', '{"a":1}']);
     assert.equal(note.next, '0');
     assert.deepEqual(parseNote('{"items": "buy milk"}').items, ['buy milk']);
+});
+
+test('reads checkboxes next to plain bullets', () => {
+    const {items} = parseNote(JSON.stringify({items: [
+        'plain', {text: 'open', done: false}, {text: 'closed', done: true, due: 'friday'},
+    ]}));
+    assert.deepEqual(items.map(itemText), ['plain', 'open', 'closed']);
+    assert.deepEqual(items.map(itemDone), [null, false, true]);
+});
+
+test('an object that only looks like a checkbox is shown as it is', () => {
+    const {items} = parseNote(JSON.stringify({items: [{text: 'x'}, {done: true}, {text: 1, done: true}]}));
+    assert.deepEqual(items, ['{"text":"x"}', '{"done":true}', '{"text":1,"done":true}']);
+});
+
+test('makeItem writes plain bullets as plain text', () => {
+    assert.equal(makeItem('a', null), 'a');
+    assert.deepEqual(makeItem('a', false), {text: 'a', done: false});
+    assert.deepEqual(makeItem('a', true), {text: 'a', done: true});
+});
+
+test('ticking a checkbox changes only that checkbox', () => {
+    const original = {
+        titulo: 'a', color: 'red', grid: {x: 1, y: 2, w: 3},
+        itens: ['plain', {text: 'b', done: false, due: 'friday'}, {text: 'c', done: false}],
+    };
+    const saved = JSON.parse(withDone(JSON.stringify(original), 1, 'b', true));
+    assert.deepEqual(saved, {
+        ...original,
+        itens: ['plain', {text: 'b', done: true, due: 'friday'}, {text: 'c', done: false}],
+    });
+    assert.deepEqual(Object.keys(saved), Object.keys(original));
+});
+
+test('ticking does nothing when the file no longer has that line', () => {
+    const text = JSON.stringify({items: ['plain', {text: 'b', done: false}]});
+    assert.equal(withDone(text, 0, 'plain', true), text, 'a plain bullet');
+    assert.equal(withDone(text, 1, 'moved', true), text, 'different text');
+    assert.equal(withDone(text, 5, 'b', true), text, 'gone');
+    assert.equal(withDone(text, 1, 'b', false), text, 'already that way');
+    assert.equal(withDone('{"items": "b"}', 0, 'b', true), '{"items": "b"}', 'not a list');
+    assert.throws(() => withDone('{ not json', 0, 'b', true));
+});
+
+test('checkboxes survive an edit of other fields and count as content', () => {
+    const text = JSON.stringify({items: [{text: 'b', done: true}]});
+    assert.deepEqual(JSON.parse(withContent(text, {title: 'c'})).items, [{text: 'b', done: true}]);
+    assert.ok(!isBlank(parseNote(text)));
+    assert.ok(isBlank(parseNote(JSON.stringify({items: [{text: ' ', done: false}]}))));
 });
 
 test('field names from Object.prototype are just unknown fields', () => {
