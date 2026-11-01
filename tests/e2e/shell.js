@@ -73,9 +73,22 @@ export function rect(id) {
 
 const dataDir = () => join(process.env.GRID_NOTES_RUN, 'data', 'grid-notes');
 
-export const notes = () => Object.fromEntries(readdirSync(dataDir())
-    .filter(name => name.endsWith('.json'))
-    .map(name => [name, JSON.parse(readFileSync(join(dataDir(), name), 'utf8'))]));
+// `lenient` leaves out what isn't valid, for tests that wrote broken files on purpose.
+export function notes({lenient = false} = {}) {
+    const read = name => {
+        try {
+            return [name, JSON.parse(readFileSync(join(dataDir(), name), 'utf8'))];
+        } catch (e) {
+            if (lenient)
+                return null;
+            throw e;
+        }
+    };
+    return Object.fromEntries(readdirSync(dataDir())
+        .filter(name => name.endsWith('.json'))
+        .map(read)
+        .filter(Boolean));
+}
 
 export const writeNote = (name, value) =>
     writeFileSync(join(dataDir(), name), typeof value === 'string' ? value : JSON.stringify(value));

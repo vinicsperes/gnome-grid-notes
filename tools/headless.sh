@@ -29,7 +29,7 @@ cleanup() {
     rm -rf "$run" 2>/dev/null || { sleep 1; rm -rf "$run"; }
 }
 trap cleanup EXIT
-mkdir -p "$run/data/gnome-shell/extensions" "$run/config" "$run/cache" "$run/runtime" "$run/data/grid-notes" "$run/home"
+mkdir -p "$run/data/gnome-shell/extensions" "$run/config" "$run/cache" "$run/runtime" "$run/data/grid-notes" "$run/home/Desktop"
 chmod 700 "$run/runtime"
 glib-compile-schemas "$root/extension/schemas"
 ln -s "$root/extension" "$run/data/gnome-shell/extensions/grid-notes@desktop"
