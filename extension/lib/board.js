@@ -580,17 +580,17 @@ export class Board {
             this._persist(card);
             this._syncAddButton(grid);
         } else {
-            this._onClick(card);
+            this._onClick(card, gesture);
         }
         this._catchUp();
     }
 
-    _onClick(card) {
+    _onClick(card, {pressX, pressY}) {
         const now = GLib.get_monotonic_time() / 1000;
         const isDouble = this._lastClick?.card === card && now - this._lastClick.time < DOUBLE_CLICK_MS;
         this._lastClick = isDouble ? null : {card, time: now};
         if (isDouble && !card.error)
-            this._edit(card);
+            this._edit(card, pressX, pressY);
     }
 
     // In front of the windows, with everything else dimmed. Holds the pointer
@@ -685,22 +685,24 @@ export class Board {
         this._openComposer(card, wasFocused);
     }
 
-    _edit(card) {
+    _edit(card, x, y) {
         const wasFocused = Boolean(this._focus);
         // Still finishing an animation, it would carry on behind the editor.
         card.settle();
+        // Asked now, because writing starts by replacing the text on the card.
+        const spot = card.locate(x, y);
         this.enterFocus(card);
-        this._openComposer(card, wasFocused);
+        this._openComposer(card, wasFocused, spot);
     }
 
-    _openComposer(card, keepFocus) {
+    _openComposer(card, keepFocus, spot = null) {
         card.setEditing(true);
         this.layer.set_child_above_sibling(card.actor, null);
         this._composer = new Composer(card, {
             onGrow: () => this._fit(card),
             onFinish: (values, changes) => this._closeComposer(values, changes, keepFocus),
         });
-        this._composer.focus();
+        this._composer.focus(spot);
         this._fit(card);
     }
 

@@ -85,10 +85,14 @@ export class Composer {
             JSON.stringify(value) !== JSON.stringify(initial[name])));
     }
 
-    focus() {
-        const target = this._title.text ? this._fields().at(-1) : this._title;
+    // At the spot that was clicked if there is one, or else ready to carry on
+    // from the end of the note.
+    focus(spot = null) {
+        const clicked = spot && ({title: this._title, next: this._next}[spot.field] ??
+            this._rows[spot.field]?.entry);
+        const target = clicked ?? (this._title.text ? this._fields().at(-1) : this._title);
         target.grab_key_focus();
-        target.clutter_text.set_cursor_position(-1);
+        target.clutter_text.set_cursor_position(clicked ? spot.position : -1);
     }
 
     _fields() {

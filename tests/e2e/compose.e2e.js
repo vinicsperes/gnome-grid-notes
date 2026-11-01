@@ -90,7 +90,7 @@ test('double click edits, and only what changed is saved', async () => {
     await sleep(400);
     assert.equal(notes()['6-cli.json'].date, date, 'no edits, date untouched');
 
-    await drive(`await driver.click(${r.x + 150}, ${r.y + 20}, 2);`);
+    await drive(`await driver.click(${r.x + 150}, ${r.y + 6}, 2);`);
     await sleep(300);
     await type(' now');
     await tap('esc');

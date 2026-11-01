@@ -152,10 +152,15 @@ export class Card {
             orientation: Clutter.Orientation.VERTICAL,
             style_class: 'grid-notes-head',
         });
+        // Which text on the card belongs to which field, to find what was clicked.
+        this._spots = [];
         // A broken file has no title of its own, but still needs telling apart.
         const title = note.title || (this.error ? this.file : '');
-        if (title)
-            head.add_child(wrapped(title, 'grid-notes-title'));
+        if (title) {
+            const label = wrapped(title, 'grid-notes-title');
+            head.add_child(label);
+            this._spots.push({field: 'title', label});
+        }
         if (note.date)
             head.add_child(wrapped(whenText(note.date), 'grid-notes-date'));
         if (title || note.date)
@@ -178,6 +183,7 @@ export class Card {
             }
             row.add_child(label);
             this.body.add_child(row);
+            this._spots.push({field: index, label});
         });
 
         if (note.next) {
@@ -186,8 +192,10 @@ export class Card {
                 style_class: 'grid-notes-next',
             });
             next.add_child(new St.Label({text: strings.next, style_class: 'grid-notes-next-head'}));
-            next.add_child(wrapped(note.next, 'grid-notes-next-text'));
+            const label = wrapped(note.next, 'grid-notes-next-text');
+            next.add_child(label);
             this.body.add_child(next);
+            this._spots.push({field: 'next', label});
         }
     }
 
@@ -199,6 +207,16 @@ export class Card {
         const {mark, label} = this._checks.get(index);
         setMark(mark, done);
         setDoneStyle(label, done);
+    }
+
+    // The field and character at a point on screen, or null off any text.
+    locate(x, y) {
+        for (const {field, label} of this._spots) {
+            const [inside, lx, ly] = label.transform_stage_point(x, y);
+            if (inside && ly >= 0 && ly < label.height)
+                return {field, position: label.clutter_text.coords_to_position(lx, ly)};
+        }
+        return null;
     }
 
     // Buttons on the card that have to see their own press and release.

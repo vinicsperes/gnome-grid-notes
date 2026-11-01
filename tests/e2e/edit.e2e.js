@@ -26,6 +26,45 @@ test('a card fading in never blinks out on the way', async () => {
     });
 });
 
+const STUDIO = '4-studio.json';
+const focused = () => board(`(k => {
+    const c = b._composer;
+    if (k === c._title.clutter_text) return 'title';
+    if (c._next && k === c._next.clutter_text) return 'next';
+    return c._rows.findIndex(r => r.entry.clutter_text === k);
+})(global.stage.get_key_focus())`);
+
+async function doubleClick(field, dx = 40) {
+    const [x, y] = board(`b._cards.get('${STUDIO}')._spots.find(s => s.field === ${JSON.stringify(field)})` +
+        '.label.get_transformed_position()');
+    await drive(`await driver.click(${x + dx}, ${y + 6}, 2);`);
+    await sleep(200);
+}
+
+async function closeEditor() {
+    await drive('await driver.tap(Clutter.KEY_Escape);');
+    await sleep(300);
+}
+
+test('double clicking a line puts the caret on that line, where it was clicked', async () => {
+    for (const field of ['title', 0, 1, 'next']) {
+        await doubleClick(field);
+        assert.equal(focused(), field, `caret on ${field}`);
+        const position = board('global.stage.get_key_focus().get_cursor_position()');
+        assert.ok(position > 0, `inside the text of ${field}, at ${position}`);
+        await closeEditor();
+    }
+});
+
+test('double clicking away from any text carries on from the end of the note', async () => {
+    const r = rect(STUDIO);
+    await drive(`await driver.click(${r.x + 150}, ${r.y + 6}, 2);`);
+    await sleep(200);
+    assert.equal(focused(), 'next');
+    assert.equal(board('global.stage.get_key_focus().get_cursor_position()'), -1);
+    await closeEditor();
+});
+
 // Which cards a small window ended up over, and which it left clear.
 function overlap() {
     const [fx, fy, fw, fh] = board('(f => [f.x, f.y, f.width, f.height])' +
