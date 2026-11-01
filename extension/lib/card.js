@@ -214,8 +214,15 @@ export class Card {
     appear(delay = 0) {
         const {actor} = this;
         actor.set({opacity: 0, scale_x: 0.94, scale_y: 0.94, translation_y: 12});
+        // Separate, because opacity is a byte: overshooting 255 wraps around to
+        // nearly invisible and the card blinks just as it should be settling.
         actor.ease({
             opacity: 255,
+            delay,
+            duration: 220,
+            mode: Clutter.AnimationMode.EASE_OUT_QUAD,
+        });
+        actor.ease({
             scale_x: 1,
             scale_y: 1,
             translation_y: 0,
