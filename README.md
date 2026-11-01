@@ -25,6 +25,7 @@ on your desktop.
 - **Drag** cards around. They always land on the grid, and the rest make room
 - **Resize** from either bottom corner, in whole grid steps
 - **Write in place**: the card grows as you type, pushing its neighbours along
+- **Checkboxes**: any line can be one, ticked with a click right on the card
 - **Works over your windows**: one shortcut brings the notes forward to jot
   something down or rearrange them, and Esc sends them back
 - **Plain files**: edit, add or delete a file and the desktop follows right away
@@ -59,6 +60,7 @@ Your notes stay where they are.
 | Move a note | Drag it |
 | Resize a note | Drag a bottom corner |
 | Edit a note | Double click it |
+| Tick a checkbox | Click it |
 | Delete a note | **×** in its corner, twice. It goes to the trash |
 
 Shortcuts can be changed with `gsettings` under
@@ -71,6 +73,7 @@ While writing:
 | `Enter` | Next line, or a new bullet |
 | `Enter` on an empty bullet | Moves on to the next step |
 | `Backspace` on an empty line | Removes it |
+| `Ctrl` `T`, or a click on the bullet | Bullet, checkbox, ticked, and back to a bullet |
 | `Tab`, `Up`, `Down` | Move between lines |
 | `Esc`, `Ctrl` `Enter` or a click outside | Finish and save |
 
@@ -86,6 +89,9 @@ Notes live in `~/.local/share/mural`, one `.json` file each:
   "next": "write the launch post and pick a date"
 }
 ```
+
+A line in `items` can also be a checkbox, written as
+`{"text": "Book the venue", "done": false}`.
 
 Every field is optional. `date` shows up as "2 days ago", and `next` gets the
 highlighted box at the bottom. Mural adds a `grid` field with the position, and
