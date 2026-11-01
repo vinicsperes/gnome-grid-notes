@@ -11,6 +11,10 @@ import {strings} from './strings.js';
 
 const {KEY_Return, KEY_KP_Enter, KEY_Escape, KEY_Tab, KEY_ISO_Left_Tab, KEY_BackSpace, KEY_Up, KEY_Down, KEY_t, KEY_T} = Clutter;
 
+// More than a card could ever show, and enough to stop an accidental paste of a
+// whole file from freezing the desktop. Never less than what's already there.
+const MAX_CHARS = 10000;
+
 function buildEntry(text, hint, styleClass) {
     const entry = new St.Entry({
         style_class: `grid-notes-entry ${styleClass}`,
@@ -25,6 +29,7 @@ function buildEntry(text, hint, styleClass) {
     inner.line_wrap = true;
     inner.line_wrap_mode = Pango.WrapMode.WORD_CHAR;
     inner.ellipsize = Pango.EllipsizeMode.NONE;
+    inner.max_length = Math.max(MAX_CHARS, text.length);
     // An entry is as tall as its hint even while that's hidden, and a hidden
     // hint never gets styled. In the default font it would make every line
     // taller than the text, which jumps the moment editing starts.
@@ -106,8 +111,29 @@ export class Composer {
 
     _wire(entry) {
         entry.clutter_text.connect('key-press-event', (_, event) => this._onKey(entry, event));
-        entry.clutter_text.connect('text-changed', () => this._onGrow());
+        entry.clutter_text.connect('text-changed', () => this._onTextChanged(entry));
         return entry;
+    }
+
+    // Typing can't put a line break in a field, since Enter moves on. Pasting
+    // can: a pasted list becomes lines of the note, anywhere else it's one line.
+    _onTextChanged(entry) {
+        if (!entry.text.includes('\n')) {
+            this._onGrow();
+            return;
+        }
+        const row = this._rows.find(r => r.entry === entry);
+        if (!row) {
+            entry.text = entry.text.replace(/\s*\n\s*/g, ' ');
+            return;
+        }
+        const [first = '', ...rest] = entry.text.split('\n').map(line => line.trim()).filter(Boolean);
+        let last = row;
+        for (const line of rest)
+            last = this._addRow(line, last, true, row.done === null ? null : false);
+        entry.text = first;
+        last.entry.grab_key_focus();
+        last.entry.clutter_text.set_cursor_position(-1);
     }
 
     _addRow(text = '', after = null, animate = false, done = null) {

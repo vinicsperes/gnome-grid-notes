@@ -442,6 +442,44 @@ test('a new note emptied again leaves nothing behind, even after an autosave', a
     assert.equal(board('b._composer'), null);
 });
 
+const paste = async text => {
+    // Escaped twice, since the D-Bus call unescapes it once on the way there.
+    const literal = JSON.stringify(text).replaceAll('\\n', '\\\\n');
+    evaluate(`imports.gi.St.Clipboard.get_default().set_text(imports.gi.St.ClipboardType.CLIPBOARD, ${literal}); 0`);
+    await sleep(100);
+    await drive('await driver.tap(Clutter.KEY_v, Clutter.KEY_Control_L);');
+    await sleep(200);
+};
+
+test('a pasted list becomes lines of the note', async () => {
+    board('b.newNote()');
+    await sleep(300);
+    await type('Pasted');
+    await tap('enter');
+    await paste('eggs\n\n  milk  \nbread');
+    assert.deepEqual(board('b._composer.values().items'), ['eggs', 'milk', 'bread']);
+    await type(' rolls');
+    assert.deepEqual(board('b._composer.values().items'), ['eggs', 'milk', 'bread rolls'], 'carries on from the end');
+});
+
+test('a pasted list carries on as checkboxes if the line is one', async () => {
+    await tap('enter');
+    await drive('await driver.tap(Clutter.KEY_t, Clutter.KEY_Control_L);');
+    await paste('one\ntwo');
+    assert.deepEqual(board('b._composer.values().items').slice(3),
+        [{text: 'one', done: false}, {text: 'two', done: false}]);
+});
+
+test('line breaks pasted in the title just become spaces', async () => {
+    const title = 'b._composer._title';
+    board(`${title}.grab_key_focus()`);
+    await paste(' for\nsure');
+    assert.equal(board('b._composer.values().title'), 'Pasted for sure');
+    await tap('esc');
+    await sleep(400);
+    assert.ok(Object.values(notes()).some(note => note.title === 'Pasted for sure'));
+});
+
 test('nothing logged an error', () => {
     assert.deepEqual(errors(), []);
 });
