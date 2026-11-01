@@ -8,6 +8,7 @@ import {emptyNote, fileNameFor, parseNote, withContent, withDone, withGrid} from
 // Notes are read on the shell's main thread, so a file has to be small enough
 // to do no harm there. Far more text than any card could show.
 const MAX_BYTES = 256 * 1024;
+const RACY_SECONDS = 2;
 
 // Fatal, because decoding bad bytes leniently and saving would corrupt the file.
 const decoder = new TextDecoder('utf-8', {fatal: true});
@@ -24,6 +25,7 @@ export class NoteStore {
         }
         this._monitor = this._dir.monitor_directory(Gio.FileMonitorFlags.WATCH_MOVES, null);
         this._text = new Map();
+        this._loaded = new Map();
         this._changedId = 0;
     }
 
@@ -31,7 +33,8 @@ export class NoteStore {
         const found = [];
         let en;
         try {
-            en = this._dir.enumerate_children('standard::name,standard::type,standard::size',
+            en = this._dir.enumerate_children(
+                'standard::name,standard::type,standard::size,time::modified,time::modified-usec',
                 Gio.FileQueryInfoFlags.NONE, null);
         } catch {
             return found;
@@ -50,7 +53,12 @@ export class NoteStore {
     // whether it differs from what was last read or written here, which is how
     // the board tells its own saves from someone else's edits.
     list() {
-        const entries = this._names().map(({file, info}) => this._read(file, info));
+        const names = this._names();
+        const entries = names.map(({file, info}) => this._read(file, info));
+        for (const file of this._loaded.keys()) {
+            if (!names.some(name => name.file === file))
+                this._loaded.delete(file);
+        }
         entries.sort((a, b) => a.file.localeCompare(b.file));
         for (const entry of entries)
             entry.changed = this._text.get(entry.file) !== entry.text;
@@ -66,11 +74,32 @@ export class NoteStore {
                 throw new Error('not a regular file');
             if (info.get_size() > MAX_BYTES)
                 throw new Error('too big for a note');
-            text = this._load(file);
+            text = this._unchanged(file, info) ?? this._load(file);
+            this._remember(file, info, text);
             return {file, text, note: parseNote(text), error: null};
         } catch (e) {
             return {file, text, note: emptyNote(), error: e.message};
         }
+    }
+
+    // Every card that moves writes its file, and each write sets off a reload of
+    // the whole folder, so most of what a reload reads is what it already has.
+    _unchanged(file, info) {
+        const known = this._loaded.get(file);
+        const modified = info.get_attribute_uint64('time::modified');
+        // File times tick more slowly than a program can write, so a file touched
+        // a moment ago could have changed again without its time changing.
+        const settled = GLib.get_real_time() / 1e6 - modified > RACY_SECONDS;
+        return settled && known?.stamp === this._stamp(info) ? known.text : null;
+    }
+
+    _remember(file, info, text) {
+        this._loaded.set(file, {stamp: this._stamp(info), text});
+    }
+
+    _stamp(info) {
+        return `${info.get_size()}:${info.get_attribute_uint64('time::modified')}:` +
+            `${info.get_attribute_uint32('time::modified-usec')}`;
     }
 
     _load(file) {
@@ -187,6 +216,6 @@ export class NoteStore {
         if (this._changedId)
             this._monitor.disconnect(this._changedId);
         this._monitor.cancel();
-        this._monitor = this._dir = this._text = null;
+        this._monitor = this._dir = this._text = this._loaded = null;
     }
 }

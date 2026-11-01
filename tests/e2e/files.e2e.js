@@ -197,6 +197,29 @@ test('an empty board still offers a way to start', async () => {
     assert.equal(add.o, 255);
 });
 
+test('an edit of the same size right after another one still shows', async () => {
+    writeNote('quick.json', {title: 'aaaa'});
+    await sleep(400);
+    writeNote('quick.json', {title: 'bbbb'});
+    await sleep(400);
+    assert.equal(board(`b._cards.get('quick.json').note.title`), 'bbbb');
+});
+
+test('a file that has not changed is not read again', async () => {
+    writeNote('old.json', {title: 'settled'});
+    await sleep(2500);
+    board('b._store.list()');
+    const read = () => board(`b._store._loaded.get('old.json').text`);
+    assert.match(read(), /settled/);
+    board(`(store => { store.__load = store._load; store.__reads = 0;
+        store._load = file => { store.__reads++; return store.__load(file); }; })(b._store)`);
+    board('b._store.list()');
+    const reads = board(`(store => { const n = store.__reads; store._load = store.__load; return n; })(b._store)`);
+    // Whatever this file's tests touched in the last moments may be read again,
+    // but the settled ones are not, so this stays well under all of them.
+    assert.ok(reads < board('b._store._names().length'), `read ${reads} files`);
+});
+
 test('nothing logged an error', () => {
     assert.deepEqual(errors(), []);
 });

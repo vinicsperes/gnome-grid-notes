@@ -161,8 +161,9 @@ export class Card {
             head.add_child(label);
             this._spots.push({field: 'title', label});
         }
-        if (note.date)
-            head.add_child(wrapped(whenText(note.date), 'grid-notes-date'));
+        this._date = note.date ? wrapped(whenText(note.date), 'grid-notes-date') : null;
+        if (this._date)
+            head.add_child(this._date);
         if (title || note.date)
             this.body.add_child(head);
 
@@ -197,6 +198,13 @@ export class Card {
             this.body.add_child(next);
             this._spots.push({field: 'next', label});
         }
+    }
+
+    // Time passing only ever changes "2 days ago", so nothing else gets rebuilt.
+    refreshDate() {
+        const text = this._date && whenText(this.note.date);
+        if (text && text !== this._date.text)
+            this._date.text = text;
     }
 
     // Changed in place: this runs from the checkbox's own click, too early to

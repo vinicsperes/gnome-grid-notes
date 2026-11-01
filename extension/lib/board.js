@@ -67,10 +67,10 @@ export class Board {
         this._workareasId = global.display.connect('workareas-changed', () => this._onScreenChanged());
         this._store.onChanged(() => this._queueReload());
         this._clockId = GLib.timeout_add_seconds(GLib.PRIORITY_LOW, REFRESH_SECONDS, () => {
-            // Redrawing a card being edited would throw away what's being typed.
+            // A card being edited has no date on it to bring up to date.
             for (const card of this._cards.values()) {
                 if (!card.editing)
-                    card.render();
+                    card.refreshDate();
             }
             return GLib.SOURCE_CONTINUE;
         });
@@ -100,13 +100,17 @@ export class Board {
     _syncStack() {
         const group = global.window_group;
         if (this._focus) {
-            group.set_child_above_sibling(this.layer, null);
+            if (group.get_last_child() !== this.layer)
+                group.set_child_above_sibling(this.layer, null);
             return;
         }
         const desktop = group.get_children().filter(actor =>
             actor instanceof Meta.WindowActor && isDesktop(actor.meta_window));
         const below = desktop.at(-1) ?? Main.layoutManager._backgroundGroup;
-        group.set_child_above_sibling(this.layer, below);
+        // Moving it, even to where it already is, redoes the layout of every
+        // window, and this runs each time any window changes places.
+        if (this.layer.get_previous_sibling() !== below)
+            group.set_child_above_sibling(this.layer, below);
     }
 
     _buildScrim() {
@@ -310,10 +314,23 @@ export class Board {
                 card.actor.set_position(rect.x, rect.y);
                 card.actor.set_size(rect.width, rect.height);
             } else {
-                card.actor.ease({...rect, ...MOTION.reflow});
+                this._easeTo(card.actor, rect);
             }
         }
         this._syncAddButton(grid);
+    }
+
+    // Only what has to change. A drag rearranges the layout on each new cell, and
+    // most cards aren't affected: an animation for them would redraw them for nothing.
+    _easeTo(actor, rect) {
+        const changing = Object.keys(rect).filter(name =>
+            actor[name] !== rect[name] || actor.get_transition(name));
+        if (changing.length) {
+            actor.ease({
+                ...Object.fromEntries(changing.map(name => [name, rect[name]])),
+                ...MOTION.reflow,
+            });
+        }
     }
 
     _gridOf(card, item) {

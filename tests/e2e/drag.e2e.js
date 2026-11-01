@@ -78,6 +78,14 @@ test('a card can sit in a new column by the left of the others', async () => {
     assert.equal(landed.y, 72, 'floated to the top');
 });
 
+test('laying out again leaves cards that are already in place alone', async () => {
+    await sleep(500);
+    const moving = () => board(`[...b._cards.values()].filter(c => c.actor.get_transition('x') || c.actor.get_transition('width')).length`);
+    assert.equal(moving(), 0);
+    board('b._applyLayout(b._metrics())');
+    assert.equal(moving(), 0);
+});
+
 test('nothing logged an error', () => {
     assert.deepEqual(errors(), []);
 });
