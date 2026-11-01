@@ -33,6 +33,7 @@ export default class Driver extends Extension {
         globalThis.driver = {
             wait,
             move: (x, y) => pointer.notify_absolute_motion(t(), x, y),
+            scroll: direction => pointer.notify_discrete_scroll(t(), direction, Clutter.ScrollSource.WHEEL),
             press: (b = 1) => button(b, Clutter.ButtonState.PRESSED),
             release: (b = 1) => button(b, Clutter.ButtonState.RELEASED),
             async click(x, y, count = 1) {

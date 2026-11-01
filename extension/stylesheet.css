@@ -145,6 +145,22 @@
   box-shadow: 0 22px 48px rgba(0, 0, 0, 0.7);
 }
 
+/* Shown only when the notes are taller than the screen. */
+.grid-notes-more {
+  width: 36px;
+  height: 36px;
+  border-radius: 18px;
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  background-color: rgba(12, 8, 16, 0.92);
+  color: rgba(236, 232, 240, 0.8);
+  icon-size: 16px;
+}
+
+.grid-notes-more:hover {
+  border-color: rgba(255, 74, 110, 0.6);
+  color: #ff4a6e;
+}
+
 /* An empty slot at the next free place on the grid. */
 .grid-notes-add {
   border-radius: 14px;

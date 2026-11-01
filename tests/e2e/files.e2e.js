@@ -51,7 +51,7 @@ test('deleting a file removes its card and closes the gap', async () => {
     await sleep(900);
     assert.equal(layout()['8-new.json'], undefined);
     assert.equal(Object.keys(layout()).length, 7);
-    assert.equal(board(`b.layer.get_children().filter(c => c.style_class === 'grid-notes-card').length`), 7);
+    assert.equal(board(`b._sheet.get_children().filter(c => c.style_class === 'grid-notes-card').length`), 7);
     assert.ok(y > 0);
 });
 

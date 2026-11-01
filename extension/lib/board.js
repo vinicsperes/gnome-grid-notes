@@ -25,6 +25,7 @@ const MAX_TILT = 3.5;
 const ARRIVAL_STAGGER = 45;
 const DOUBLE_CLICK_MS = 400;
 const ADD_ROWS = 2;
+const MORE_SIZE = 36;
 
 const {EASE_OUT_QUINT, EASE_OUT_QUAD, EASE_OUT_BACK} = Clutter.AnimationMode;
 const MOTION = {
@@ -53,12 +54,20 @@ export class Board {
         this._gesture = null;
         this._composer = null;
         this._focus = null;
+        this._scroll = 0;
 
         this.layer = new Clutter.Actor({name: 'grid-notes'});
         global.window_group.add_child(this.layer);
+        // What scrolls, when the notes are taller than the screen. Positions
+        // inside it are the same as on screen until it's scrolled.
+        this._sheet = new Clutter.Actor();
         this._buildScrim();
         this._buildGridHints();
+        this.layer.add_child(this._sheet);
+        this._ghost = new St.Widget({style_class: 'grid-notes-ghost', opacity: 0, visible: false});
+        this._sheet.add_child(this._ghost);
         this._buildAddButton();
+        this._buildMoreButton();
 
         this._restackedId = global.display.connect('restacked', () => this._syncStack());
         this._mapId = global.window_manager.connect_after('map', () => this._syncStack());
@@ -123,6 +132,7 @@ export class Board {
             opacity: 0,
             visible: false,
         });
+        this._scrim.connect('scroll-event', (_, event) => this._onScroll(event));
         this._scrim.connect('button-press-event', () => {
             if (this._composer)
                 this._composer.finish();
@@ -136,7 +146,111 @@ export class Board {
     _buildAddButton() {
         this._add = new St.Button({style_class: 'grid-notes-add', label: '+'});
         this._add.connect('clicked', () => this.newNote());
-        this.layer.add_child(this._add);
+        this._add.connect('scroll-event', (_, event) => this._onScroll(event));
+        this._sheet.add_child(this._add);
+    }
+
+    // Says there's more below, or the way back up from the end. Only there at
+    // all when the notes don't fit on the screen.
+    _buildMoreButton() {
+        this._more = new St.Button({
+            style_class: 'grid-notes-more',
+            child: new St.Icon({icon_name: 'pan-down-symbolic'}),
+            opacity: 0,
+            visible: false,
+        });
+        this._more.set_cursor_type(Clutter.CursorType.POINTER);
+        this._more.connect('clicked', () => {
+            const page = this._workArea().height * 0.8;
+            this._scrollTo(this._atEnd() ? 0 : this._scroll + page);
+        });
+        this._more.connect('scroll-event', (_, event) => this._onScroll(event));
+        this.layer.add_child(this._more);
+    }
+
+    _maxScroll(grid = this._metrics()) {
+        const rows = Math.max(0, ...this._layout.map(item => item.y + item.h));
+        const {py} = grid.toPixels({x: 0, y: rows, w: 1});
+        const area = this._workArea();
+        return Math.max(0, py + SIZES.margin - SIZES.gap - (area.y + area.height));
+    }
+
+    _atEnd() {
+        return this._scroll >= this._maxScroll();
+    }
+
+    _scrollTo(position, animate = true) {
+        const target = Math.round(Math.max(0, Math.min(position, this._maxScroll())));
+        if (target !== this._scroll) {
+            this._scroll = target;
+            this._sheet.remove_transition('y');
+            if (animate)
+                this._sheet.ease({y: -target, duration: 180, mode: EASE_OUT_QUAD});
+            else
+                this._sheet.y = -target;
+        }
+        this._syncMoreButton();
+    }
+
+    _onScroll(event) {
+        if (this._gesture || !this._maxScroll())
+            return Clutter.EVENT_PROPAGATE;
+        // A wheel notch also arrives a second time as a made-up smooth scroll.
+        if (event.is_pointer_emulated())
+            return Clutter.EVENT_STOP;
+        const {stepY} = this._metrics();
+        const notch = stepY * 2;
+        switch (event.get_scroll_direction()) {
+        case Clutter.ScrollDirection.UP:
+            this._scrollTo(this._scroll - notch);
+            break;
+        case Clutter.ScrollDirection.DOWN:
+            this._scrollTo(this._scroll + notch);
+            break;
+        case Clutter.ScrollDirection.SMOOTH:
+            // Follows the fingers directly, already as smooth as they are.
+            this._scrollTo(this._scroll + event.get_scroll_delta()[1] * notch, false);
+            break;
+        }
+        return Clutter.EVENT_STOP;
+    }
+
+    // Keeps a card in view as it grows, its end first since that's where
+    // writing usually is.
+    _reveal(rect) {
+        const area = this._workArea();
+        const top = area.y + SIZES.margin;
+        const bottom = area.y + area.height - SIZES.margin;
+        let target = this._scroll;
+        if (rect.y - target < top)
+            target = rect.y - top;
+        if (rect.y + rect.height - target > bottom)
+            target = rect.y + rect.height - bottom;
+        this._scrollTo(target);
+    }
+
+    _syncMoreButton() {
+        const {_more: more} = this;
+        const needed = this._maxScroll() > 0 && !this._gesture;
+        if (!needed && !more.visible)
+            return;
+        more.reactive = needed;
+        if (needed) {
+            const area = this._workArea();
+            more.set_position(
+                Math.round(area.x + (area.width - MORE_SIZE) / 2),
+                area.y + area.height - MORE_SIZE - SIZES.gap);
+            more.child.icon_name = this._atEnd() ? 'pan-up-symbolic' : 'pan-down-symbolic';
+            more.show();
+        }
+        more.ease({
+            opacity: needed ? 255 : 0,
+            ...MOTION.fade,
+            onStopped: () => {
+                if (!more.reactive)
+                    more.hide();
+            },
+        });
     }
 
     // Sits exactly where a new note would go, so writing one starts from here.
@@ -157,8 +271,13 @@ export class Board {
         const [px, py] = global.get_pointer();
         this._add.hover = this._add.reactive &&
             px >= rect.x && px < rect.x + rect.width &&
-            py >= rect.y && py < rect.y + rect.height;
+            py + this._scroll >= rect.y && py + this._scroll < rect.y + rect.height;
         this._add.ease({opacity: this._gesture || this._composer ? 0 : 255, ...MOTION.fade});
+        // Cards may have just made the board shorter than where it's scrolled to.
+        if (!this._gesture) {
+            this._scrollTo(this._scroll);
+            this._dots.queue_repaint();
+        }
     }
 
     _addSlot(grid) {
@@ -172,9 +291,6 @@ export class Board {
         this._dots = new St.DrawingArea({width, height, opacity: 0, visible: false});
         this._dots.connect('repaint', area => this._paintDots(area));
         this.layer.add_child(this._dots);
-
-        this._ghost = new St.Widget({style_class: 'grid-notes-ghost', opacity: 0, visible: false});
-        this.layer.add_child(this._ghost);
     }
 
     _paintDots(area) {
@@ -183,8 +299,9 @@ export class Board {
         const {y: top, height} = this._workArea();
         cr.setSourceRGBA(1, 1, 1, 0.28);
         for (let x = 0; x < grid.cols; x++) {
-            for (let y = 0; ; y++) {
-                const {px, py} = grid.toPixels({x, y, w: 1});
+            for (let y = Math.floor(this._scroll / grid.stepY); ; y++) {
+                const {px, py: below} = grid.toPixels({x, y, w: 1});
+                const py = below - this._scroll;
                 if (py > top + height)
                     break;
                 cr.arc(px, py, 1.4, 0, 2 * Math.PI);
@@ -259,7 +376,7 @@ export class Board {
             if (!card) {
                 const created = new Card(file, note, error);
                 this._wire(created);
-                this.layer.add_child(created.actor);
+                this._sheet.add_child(created.actor);
                 this._cards.set(file, created);
                 fresh.push(created);
                 dirty = true;
@@ -379,6 +496,7 @@ export class Board {
         actor.connect('button-press-event', (_, event) => this._onPress(card, event));
         actor.connect('motion-event', (_, event) => this._onMotion(event));
         actor.connect('button-release-event', (_, event) => this._onRelease(event));
+        actor.connect('scroll-event', (_, event) => this._onScroll(event));
 
         for (const grip of card.grips) {
             grip.connect('button-press-event', (_, event) => this._onGripPress(card, grip, event));
@@ -412,7 +530,7 @@ export class Board {
             base: this._layout,
             grab: global.stage.grab(grip),
         };
-        this.layer.set_child_above_sibling(actor, null);
+        this._sheet.set_child_above_sibling(actor, null);
         this._dots.show();
         this._dots.remove_all_transitions();
         this._dots.ease({opacity: 255, ...MOTION.fade});
@@ -526,7 +644,7 @@ export class Board {
         card.settle();
         actor.add_style_class_name('grid-notes-card-lifted');
         actor.set_cursor_type(Clutter.CursorType.GRABBING);
-        this.layer.set_child_above_sibling(actor, null);
+        this._sheet.set_child_above_sibling(actor, null);
         actor.ease({scale_x: 1.03, scale_y: 1.03, ...MOTION.lift});
 
         const item = this._layout.find(i => i.id === card.file);
@@ -643,7 +761,7 @@ export class Board {
             .map(window => window.get_frame_rect());
         const hidden = ({actor}) => frames.some(f =>
             actor.x < f.x + f.width && f.x < actor.x + actor.width &&
-            actor.y < f.y + f.height && f.y < actor.y + actor.height);
+            actor.y - this._scroll < f.y + f.height && f.y < actor.y - this._scroll + actor.height);
         [...this._cards.values()]
             .filter(card => card !== held && hidden(card))
             .forEach((card, i) => card.appear(i * ARRIVAL_STAGGER / 2));
@@ -689,7 +807,7 @@ export class Board {
         const file = `.new-${GLib.get_monotonic_time()}`;
         const card = new Card(file, emptyNote());
         this._wire(card);
-        this.layer.add_child(card.actor);
+        this._sheet.add_child(card.actor);
         this._cards.set(file, card);
 
         // Grows out of the empty slot it was started from.
@@ -714,7 +832,7 @@ export class Board {
 
     _openComposer(card, keepFocus, spot = null) {
         card.setEditing(true);
-        this.layer.set_child_above_sibling(card.actor, null);
+        this._sheet.set_child_above_sibling(card.actor, null);
         this._composer = new Composer(card, {
             onGrow: () => this._fit(card),
             onFinish: (values, changes) => this._closeComposer(values, changes, keepFocus),
@@ -730,6 +848,7 @@ export class Board {
         const h = this._rowsFor(card, item.w, grid);
         this._layout = resize(this._layout, card.file, item.w, h, grid.cols, item.x);
         this._applyLayout(grid);
+        this._reveal(this._rectOf(this._layout.find(i => i.id === card.file), grid));
     }
 
     // Says whether the composer may close. It stays open the first time saving
