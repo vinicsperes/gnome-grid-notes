@@ -16,15 +16,18 @@ function box(done) {
     return check;
 }
 
+// With the first line of the text, however many lines it wraps to.
+const slot = {style_class: 'grid-notes-mark', y_align: Clutter.ActorAlign.START};
+
 // A bullet nobody can click, which holds the same room as a button.
-export const staticBullet = () => new St.Bin({style_class: 'grid-notes-mark', child: bullet()});
+export const staticBullet = () => new St.Bin({...slot, child: bullet()});
 
 export function setMark(button, done) {
     button.child = done === null ? bullet() : box(done);
 }
 
 export function buildMark(done) {
-    const button = new St.Button({style_class: 'grid-notes-mark'});
+    const button = new St.Button(slot);
     button.set_cursor_type(Clutter.CursorType.POINTER);
     setMark(button, done);
     return button;

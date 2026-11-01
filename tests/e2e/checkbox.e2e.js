@@ -79,7 +79,8 @@ test('the marker in the editor goes from bullet to checkbox to ticked and back',
     writeNote(FILE, {title: 'Groceries', items: ['one']});
     await sleep(500);
     const r = rect(FILE);
-    await drive(`await driver.click(${r.x + 150}, ${r.y + 20}, 2);`);
+    // Off the text, so that the caret goes to the end of the note.
+    await drive(`await driver.click(${r.x + 150}, ${r.y + 6}, 2);`);
     await sleep(300);
     const row = 'b._composer._rows[0]';
     const [x, y] = board(`${row}.mark.get_transformed_position()`);
@@ -125,6 +126,34 @@ test('accented text stays in place through a tick', async () => {
     assert.deepEqual(saved().items, [{text: 'ação às três', done: true}]);
     if (process.env.GRID_NOTES_SHOT)
         screenshot(process.env.GRID_NOTES_SHOT);
+});
+
+test('the marker stays with the first line of text that wraps', async () => {
+    writeNote(FILE, {items: [
+        {text: 'a line long enough that it has to wrap around onto a second one', done: false},
+        'and a bullet that is also long enough to wrap around onto a second one',
+    ]});
+    await sleep(500);
+    for (const row of [0, 1]) {
+        const [mark, label] = board(`${card}.body.get_child_at_index(${row}).get_children()` +
+            '.map(child => child.get_transformed_position()[1])');
+        const lines = board(`${card}.body.get_child_at_index(${row}).get_height()`);
+        assert.ok(lines > 30, 'it did wrap');
+        assert.equal(mark, label);
+    }
+});
+
+test('a brand new note can start with a checkbox', async () => {
+    board('b.newNote()');
+    await sleep(300);
+    await type('Chores');
+    await tap('enter');
+    await ctrlT();
+    await type('dishes');
+    await tap('esc');
+    await sleep(400);
+    assert.deepEqual(notes()['chores.json'].items, [{text: 'dishes', done: false}]);
+    assert.deepEqual(board(`[...b._cards.get('chores.json')._checks.keys()]`), [0]);
 });
 
 test('no errors in the shell', () => {
