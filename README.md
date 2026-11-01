@@ -68,6 +68,8 @@ cd gnome-grid-notes
 make install
 ```
 
+Log out and back in and turn it on the same way. To remove it, `make uninstall`.
+
 ## Using it
 
 | Action | How |
@@ -91,7 +93,7 @@ While writing:
 | --- | --- |
 | `Enter` | Next line, or a new bullet |
 | `Ctrl` `V` with a list | Each line of it becomes a line of the note |
-| `Enter` on an empty bullet | Moves on to the next step |
+| `Enter` on an empty bullet | Opens the highlighted box at the bottom |
 | `Backspace` on an empty line | Removes it |
 | `Ctrl` `T`, or a click on the bullet | Bullet, checkbox, ticked, and back to a bullet |
 | `Tab`, `Up`, `Down` | Move between lines |
@@ -125,8 +127,9 @@ A file that can't be read gets a card saying so and is never overwritten.
 Notes are stored as plain text and never leave your computer: Grid Notes makes no
 network connections. They do show on your desktop, including while sharing your
 screen, so keep passwords and the like somewhere else, and press `Ctrl` `Alt` `H`
-before you share. They stay hidden until you press it again, even across locking
-the screen or logging out. Notes are also hidden while the screen is locked.
+before you share. They stay hidden until you press it again or start a new note,
+even across locking the screen or logging out. Notes are also hidden while the
+screen is locked.
 
 ## Development
 
