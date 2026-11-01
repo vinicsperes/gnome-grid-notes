@@ -32,6 +32,7 @@ on your desktop.
 - **Works over your windows**: one shortcut brings the notes forward to jot
   something down or rearrange them, and Esc sends them back
 - **Plain files**: edit, add or delete a file and the desktop follows right away
+- **Hide them all** with one shortcut before sharing your screen
 - **Plays nicely with desktop icons**: empty space still belongs to them
 - English and Portuguese, following your session language
 
@@ -78,10 +79,11 @@ make install
 | Edit a note | Double click it |
 | Tick a checkbox | Click it |
 | Delete a note | **×** in its corner, twice, then **Undo** if that was a mistake. After that it's in the trash |
-| Scroll, when the notes don't fit | The wheel or touchpad over a note, or the arrow at the bottom |
+| Scroll, when the notes don't fit | The wheel or touchpad over a note, or the arrow at the bottom. A card dragged to the edge scrolls too |
+| Hide or show all notes | `Ctrl` `Alt` `H` |
 
-Shortcuts can be changed with `gsettings` under
-`org.gnome.shell.extensions.grid-notes`, using the extension's `schemas` folder.
+Shortcuts can be changed in the extension's preferences, from the Extensions app
+or with `gnome-extensions prefs grid-notes@desktop`.
 
 While writing:
 
@@ -93,6 +95,7 @@ While writing:
 | `Backspace` on an empty line | Removes it |
 | `Ctrl` `T`, or a click on the bullet | Bullet, checkbox, ticked, and back to a bullet |
 | `Tab`, `Up`, `Down` | Move between lines |
+| `Alt` `Up`, `Alt` `Down` | Move the current line up or down the list |
 | `Esc`, `Ctrl` `Enter` or a click outside | Finish and save |
 
 ## Note files
@@ -121,8 +124,9 @@ A file that can't be read gets a card saying so and is never overwritten.
 
 Notes are stored as plain text and never leave your computer: Grid Notes makes no
 network connections. They do show on your desktop, including while sharing your
-screen, so keep passwords and the like somewhere else. Notes are hidden while the
-screen is locked.
+screen, so keep passwords and the like somewhere else, and press `Ctrl` `Alt` `H`
+before you share. They stay hidden until you press it again, even across locking
+the screen or logging out. Notes are also hidden while the screen is locked.
 
 ## Development
 
