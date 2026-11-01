@@ -146,6 +146,9 @@ test(`${STEPS} random actions keep everything tidy`, {timeout: 600000}, async ()
         await sleep(900);
         if (board('b._composer') !== null)
             await key('Escape');
+        // Time ran out on an undo just now, and its message is still fading.
+        if (board('b._toast.visible && b._undo === null'))
+            await sleep(300);
         check(step, name);
     }
 });

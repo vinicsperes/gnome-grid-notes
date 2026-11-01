@@ -3,7 +3,10 @@
 # its own data folder, so changes can be exercised without touching the session
 # you are working in. The shell stays up until the given command exits.
 #
-#   tools/headless.sh [--data DIR] [--size WxH] COMMAND...
+#   tools/headless.sh [--data DIR] [--size WxH] [--zip FILE] COMMAND...
+#
+# With --zip the extension is installed from that package, as a user would,
+# instead of being linked from this folder.
 #
 # COMMAND sees GRID_NOTES_RUN (the sandbox) and can talk to the shell over D-Bus.
 set -euo pipefail
@@ -11,10 +14,12 @@ set -euo pipefail
 root="$(cd "$(dirname "$0")/.." && pwd)"
 size=1920x1080
 seed=""
+zip=""
 while [[ ${1:-} == --* ]]; do
     case "$1" in
         --data) seed="$2"; shift 2 ;;
         --size) size="$2"; shift 2 ;;
+        --zip) zip="$(realpath "$2")"; shift 2 ;;
         *) echo "unknown option $1" >&2; exit 2 ;;
     esac
 done
@@ -32,7 +37,6 @@ trap cleanup EXIT
 mkdir -p "$run/data/gnome-shell/extensions" "$run/config" "$run/cache" "$run/runtime" "$run/data/grid-notes" "$run/home/Desktop"
 chmod 700 "$run/runtime"
 glib-compile-schemas "$root/extension/schemas"
-ln -s "$root/extension" "$run/data/gnome-shell/extensions/grid-notes@desktop"
 ln -s "$root/tools/driver@grid-notes" "$run/data/gnome-shell/extensions/driver@grid-notes"
 [[ -n $seed ]] && cp "$seed"/*.json "$run/data/grid-notes/"
 
@@ -42,6 +46,12 @@ export XDG_DATA_HOME="$run/data" XDG_CONFIG_HOME="$run/config" XDG_CACHE_HOME="$
 export XDG_RUNTIME_DIR="$run/runtime"
 export XDG_SESSION_TYPE=wayland
 unset DISPLAY WAYLAND_DISPLAY DBUS_SESSION_BUS_ADDRESS
+
+if [[ -n $zip ]]; then
+    gnome-extensions install "$zip"
+else
+    ln -s "$root/extension" "$run/data/gnome-shell/extensions/grid-notes@desktop"
+fi
 
 exec 3>&2
 dbus-run-session -- bash -c '

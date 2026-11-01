@@ -41,6 +41,26 @@ test('the wheel over a card scrolls, without saving anything', async () => {
     assert.equal(scrolled(), 0);
 });
 
+test('scrolling moves the hover along with the cards', async () => {
+    writeNote('2-thesis.json', {title: 'Thesis', items: ['a'], grid: {x: 0, y: 0, w: 2}});
+    writeNote('long.json', {...LONG, grid: {x: 2, y: 0, w: 2}});
+    writeNote('below.json', {title: 'Below', items: Array.from({length: 40}, (_, i) => `line ${i}`), grid: {x: 0, y: 8, w: 2}});
+    await sleep(600);
+    const top = rect('2-thesis.json');
+    const px = top.x + 150;
+    await drive(`driver.move(${px}, ${top.y + 30}); await driver.wait(150);`);
+    assert.equal(board(`b._cards.get('2-thesis.json').actor.hover`), true);
+    const hit = board(`b._cards.get('below.json').actor.y`);
+    await drive(`for (let i = 0; i < ${Math.ceil((hit - top.y) / 72) + 1}; i++) { driver.scroll(Clutter.ScrollDirection.DOWN); await driver.wait(30); }`);
+    await sleep(500);
+    assert.equal(board(`b._cards.get('2-thesis.json').actor.hover`), false, 'no longer under the pointer');
+    assert.equal(board(`b._cards.get('below.json').actor.hover`), true, 'now under the pointer');
+    await wheel('UP', 60);
+    await sleep(300);
+    removeNote('below.json');
+    await sleep(500);
+});
+
 test('it stops at both ends', async () => {
     await wheel('UP', 3);
     assert.equal(scrolled(), 0);
