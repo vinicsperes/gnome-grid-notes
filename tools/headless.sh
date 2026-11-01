@@ -3,7 +3,7 @@
 # its own data folder, so changes can be exercised without touching the session
 # you are working in. The shell stays up until the given command exits.
 #
-#   tools/headless.sh [--data DIR] [--size WxH] [--zip FILE] COMMAND...
+#   tools/headless.sh [--data DIR] [--size WxH[,WxH...]] [--zip FILE] COMMAND...
 #
 # With --zip the extension is installed from that package, as a user would,
 # instead of being linked from this folder.
@@ -63,8 +63,13 @@ dbus-run-session -- bash -c '
     gsettings set org.gnome.desktop.background picture-uri-dark "file://$GRID_NOTES_ROOT/tools/wallpaper.png"
     gsettings set org.gnome.desktop.interface color-scheme prefer-dark
     gsettings set org.gnome.shell enabled-extensions "[\"driver@grid-notes\", \"grid-notes@desktop\"${GRID_NOTES_DING:+, \"ding@rastersoft.com\"}]"
+    monitors=()
+    IFS=, read -ra sizes <<<"$0"
+    for each in "${sizes[@]}"; do
+        monitors+=(--virtual-monitor "$each")
+    done
     gnome-shell --headless --wayland --no-x11 --wayland-display=grid-notes-0 \
-        --virtual-monitor "$0" >"$GRID_NOTES_RUN/shell.log" 2>&1 &
+        "${monitors[@]}" >"$GRID_NOTES_RUN/shell.log" 2>&1 &
     shell=$!
     trap "kill $shell 2>/dev/null || true" EXIT
     for _ in $(seq 100); do
