@@ -11,7 +11,7 @@ import {strings} from './strings.js';
 
 const ARMED_MS = 2500;
 
-function wrapped(text, styleClass) {
+export function wrapped(text, styleClass) {
     const label = new St.Label({text, style_class: styleClass, x_expand: true});
     label.clutter_text.line_wrap = true;
     label.clutter_text.line_wrap_mode = Pango.WrapMode.WORD_CHAR;
@@ -19,7 +19,7 @@ function wrapped(text, styleClass) {
     return label;
 }
 
-function whenText(iso) {
+export function whenText(iso) {
     const days = daysSince(iso, new Date());
     if (days === null)
         return iso;

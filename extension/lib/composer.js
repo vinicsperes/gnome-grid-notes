@@ -4,6 +4,7 @@ import Clutter from 'gi://Clutter';
 import Pango from 'gi://Pango';
 import St from 'gi://St';
 
+import {whenText, wrapped} from './card.js';
 import {strings} from './strings.js';
 
 const {KEY_Return, KEY_KP_Enter, KEY_Escape, KEY_Tab, KEY_ISO_Left_Tab, KEY_BackSpace, KEY_Up, KEY_Down} = Clutter;
@@ -53,6 +54,10 @@ export class Composer {
             style_class: 'mural-head',
         });
         head.add_child(this._title);
+        // Not editable, but it holds its line: without it all the text below
+        // would jump up the moment writing starts.
+        if (note.date)
+            head.add_child(wrapped(whenText(note.date), 'mural-date'));
         card.body.add_child(head);
 
         for (const item of note.items)

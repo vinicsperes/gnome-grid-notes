@@ -592,7 +592,7 @@ export class Board {
 
     // In front of the windows, with everything else dimmed. Holds the pointer
     // and keyboard, so the rest of the desktop waits until it's over.
-    enterFocus() {
+    enterFocus(held = null) {
         if (this._focus)
             return;
         const grab = Main.pushModal(this.layer, {actionMode: Shell.ActionMode.POPUP});
@@ -610,18 +610,23 @@ export class Board {
         this._scrim.show();
         this._scrim.grab_key_focus();
         this._scrim.ease({opacity: 255, ...MOTION.fade});
-        this._cardsOverWindows();
+        this._cardsOverWindows(held);
     }
 
-    // Cards jumping over open windows would be jarring, so they fade in. On a
-    // clear desktop they were already visible and stay still.
-    _cardsOverWindows() {
+    // Cards jumping over open windows would be jarring, so the ones a window
+    // was hiding fade in. Whatever was already in view stays still, above all
+    // the card the person just double clicked.
+    _cardsOverWindows(held) {
         const workspace = global.workspace_manager.get_active_workspace();
-        const covered = global.display.get_tab_list(Meta.TabList.NORMAL, workspace)
-            .some(window => !window.minimized);
-        if (!covered)
-            return;
-        [...this._cards.values()].forEach((card, i) => card.appear(i * ARRIVAL_STAGGER / 2));
+        const frames = global.display.get_tab_list(Meta.TabList.NORMAL, workspace)
+            .filter(window => !window.minimized)
+            .map(window => window.get_frame_rect());
+        const hidden = ({actor}) => frames.some(f =>
+            actor.x < f.x + f.width && f.x < actor.x + actor.width &&
+            actor.y < f.y + f.height && f.y < actor.y + actor.height);
+        [...this._cards.values()]
+            .filter(card => card !== held && hidden(card))
+            .forEach((card, i) => card.appear(i * ARRIVAL_STAGGER / 2));
     }
 
     leaveFocus() {
@@ -679,7 +684,9 @@ export class Board {
 
     _edit(card) {
         const wasFocused = Boolean(this._focus);
-        this.enterFocus();
+        // Still finishing an animation, it would carry on behind the editor.
+        card.settle();
+        this.enterFocus(card);
         this._openComposer(card, wasFocused);
     }
 
