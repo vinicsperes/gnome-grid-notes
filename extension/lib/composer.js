@@ -9,6 +9,8 @@ import {buildMark, setDoneStyle, setMark} from './mark.js';
 import {itemDone, itemText, makeItem} from './notes.js';
 import {strings} from './strings.js';
 
+const encoder = new TextEncoder();
+
 const {KEY_Return, KEY_KP_Enter, KEY_Escape, KEY_Tab, KEY_ISO_Left_Tab, KEY_BackSpace, KEY_Up, KEY_Down, KEY_t, KEY_T} = Clutter;
 
 // More than a card could ever show, and enough to stop an accidental paste of a
@@ -200,6 +202,7 @@ export class Composer {
     _onKey(entry, event) {
         const key = event.get_key_symbol();
         const control = event.get_state() & Clutter.ModifierType.CONTROL_MASK;
+        const alt = event.get_state() & Clutter.ModifierType.MOD1_MASK;
         const fields = this._fields();
         const index = fields.indexOf(entry);
         const row = this._rows.find(r => r.entry === entry);
@@ -230,11 +233,17 @@ export class Composer {
                 this._openNext();
             return Clutter.EVENT_STOP;
         case KEY_ISO_Left_Tab:
-        case KEY_Up:
             fields[index - 1]?.grab_key_focus();
             return Clutter.EVENT_STOP;
+        case KEY_Up:
         case KEY_Down:
-            fields[index + 1]?.grab_key_focus();
+            if (alt && row) {
+                this._moveRow(row, key === KEY_Up ? -1 : 1);
+                return Clutter.EVENT_STOP;
+            }
+            if (this._hasLineTowards(entry, key))
+                return Clutter.EVENT_PROPAGATE;
+            fields[index + (key === KEY_Up ? -1 : 1)]?.grab_key_focus();
             return Clutter.EVENT_STOP;
         case KEY_BackSpace:
             if (entry.text)
@@ -250,6 +259,32 @@ export class Composer {
         default:
             return Clutter.EVENT_PROPAGATE;
         }
+    }
+
+    // Text long enough to wrap has lines of its own to move through first.
+    _hasLineTowards(entry, key) {
+        const {clutter_text: inner} = entry;
+        const layout = inner.get_layout();
+        const lines = layout.get_line_count();
+        if (lines < 2)
+            return false;
+        const cursor = inner.get_cursor_position();
+        const before = cursor < 0 ? inner.text : [...inner.text].slice(0, cursor).join('');
+        const [line] = layout.index_to_line_x(encoder.encode(before).length, false);
+        return key === KEY_Up ? line > 0 : line < lines - 1;
+    }
+
+    _moveRow(row, by) {
+        const from = this._rows.indexOf(row);
+        const to = from + by;
+        if (to < 0 || to >= this._rows.length)
+            return;
+        this._rows.splice(from, 1);
+        this._rows.splice(to, 0, row);
+        // The body holds the head, then the rows, then the next box.
+        this.card.body.set_child_at_index(row.box, to + 1);
+        row.entry.grab_key_focus();
+        this._onGrow();
     }
 
     // Enter moves on. On an empty bullet it means "that's all of those", so the

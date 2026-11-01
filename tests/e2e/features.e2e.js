@@ -1,0 +1,69 @@
+import assert from 'node:assert/strict';
+import {execFileSync, spawn} from 'node:child_process';
+import {test} from 'node:test';
+
+import {board, drive, errors, evaluate, layout, notes, rect, screenshot, sleep, writeNote} from './shell.js';
+
+const settings = "Main.extensionManager.lookup('grid-notes@desktop').stateObj._board._settings";
+const hidden = () => evaluate(`${settings}.get_boolean('hidden')`);
+const chord = key => drive(`await driver.tap(Clutter.KEY_${key}, Clutter.KEY_Control_L, Clutter.KEY_Alt_L);`);
+const key = (name, ...mods) => drive(`await driver.tap(Clutter.KEY_${name}${mods.map(m => `, Clutter.KEY_${m}`).join('')});`);
+const type = text => drive(`await driver.type(${JSON.stringify(text)});`);
+const gsettings = (command, name, ...value) => execFileSync('gsettings', [
+    '--schemadir', `${process.env.GRID_NOTES_ROOT}/extension/schemas`,
+    command, 'org.gnome.shell.extensions.grid-notes', name, ...value,
+], {encoding: 'utf8'}).trim();
+const open = async file => {
+    const r = rect(file);
+    await drive(`await driver.click(${r.x + 150}, ${r.y - board('b._scroll') + 6}, 2);`);
+    await sleep(250);
+};
+const close = async () => {
+    await key('Escape');
+    await sleep(350);
+};
+
+test('moving a line with alt and the arrows', async () => {
+    writeNote('list.json', {title: 'List', items: ['one', {text: 'two', done: true}, 'three'], grid: {x: 12, y: 0, w: 2}});
+    await sleep(400);
+    await open('list.json');
+    const items = () => board('b._composer.values().items');
+    const before = board('b._composer._rows[2].entry.clutter_text === global.stage.get_key_focus()');
+    assert.equal(before, true, 'starts on the last line');
+    await key('Up', 'Alt_L');
+    assert.deepEqual(items(), ['one', 'three', {text: 'two', done: true}]);
+    await key('Up', 'Alt_L');
+    assert.deepEqual(items(), ['three', 'one', {text: 'two', done: true}]);
+    await key('Up', 'Alt_L');
+    assert.deepEqual(items(), ['three', 'one', {text: 'two', done: true}], 'stops at the top');
+    await key('Down', 'Alt_L');
+    assert.deepEqual(items(), ['one', 'three', {text: 'two', done: true}]);
+    await type('!');
+    assert.deepEqual(items(), ['one', 'three!', {text: 'two', done: true}], 'the caret goes with the line');
+    const rows = board('b._composer.card.body.get_children().map(c => c.style_class)');
+    assert.equal(rows[0], 'grid-notes-head');
+    await close();
+    assert.deepEqual(notes()['list.json'].items, ['one', 'three!', {text: 'two', done: true}]);
+});
+
+test('up and down move inside text that wraps before leaving it', async () => {
+    const long = 'a line of text long enough that it wraps around and takes more than one line in the card, for sure';
+    writeNote('list.json', {title: 'List', items: ['short', long, 'after'], grid: {x: 12, y: 0, w: 2}});
+    await sleep(400);
+    await open('list.json');
+    const focus = () => board(`b._composer._fields().findIndex(e => e.clutter_text === global.stage.get_key_focus())`);
+    await key('Up');
+    assert.equal(focus(), 2, 'on the long line, from the one below');
+    assert.ok(board('b._composer._rows[1].entry.clutter_text.get_layout().get_line_count()') > 1);
+    await key('Up');
+    assert.equal(focus(), 2, 'still on it, one wrapped line up');
+    await key('Up');
+    assert.equal(focus(), 2, 'now on its first line');
+    await key('Up');
+    assert.equal(focus(), 1, 'and only past that does it leave');
+    await close();
+});
+
+test('no errors in the shell', () => {
+    assert.deepEqual(errors(), []);
+});
