@@ -75,6 +75,11 @@ export class Composer {
         this._initial = JSON.stringify(this.values());
     }
 
+    // What has been saved along the way no longer counts as a change.
+    markSaved() {
+        this._initial = JSON.stringify(this.values());
+    }
+
     // Only what differs from when writing started, so that opening a note
     // doesn't count as editing it even though values() tidies up whitespace and
     // blank lines, and so a save leaves every other field to the file.
@@ -131,6 +136,7 @@ export class Composer {
         row.done = row.done === null ? false : row.done === false ? true : null;
         setMark(row.mark, row.done);
         setDoneStyle(row.entry, row.done);
+        this._onGrow();
     }
 
     _removeRow(row) {

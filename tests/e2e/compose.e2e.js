@@ -383,6 +383,65 @@ test('the add button does not stay lit once it has moved away', async () => {
     assert.equal(board('b._add.reactive'), true);
 });
 
+const pause = () => sleep(1800);
+
+test('a new note reaches the disk while still being written', async () => {
+    board('b.newNote()');
+    await sleep(300);
+    await type('Draft');
+    await pause();
+    assert.equal(notes()['draft.json'], undefined, 'its title may not be finished yet');
+    await tap('enter');
+    await type('first');
+    await pause();
+    assert.deepEqual(notes()['draft.json'].items, ['first']);
+    assert.equal(board('b._composer !== null'), true, 'still writing');
+    await tap('enter');
+    await type('second');
+    await tap('esc');
+    await sleep(400);
+    assert.deepEqual(notes()['draft.json'].items, ['first', 'second']);
+    assert.equal(Object.keys(notes()).filter(name => name.startsWith('draft')).length, 1, 'one file');
+    assert.equal(board(`b._cards.get('draft.json').note.title`), 'Draft');
+});
+
+test('an edit reaches the disk while still being written', async () => {
+    // Files other tests left waiting arrive now that writing is over, and the
+    // cards around this one settle.
+    await sleep(800);
+    const r = rect('draft.json');
+    // By now this many notes don't fit, and writing the last one scrolled the board.
+    await drive(`await driver.click(${r.x + 150}, ${r.y - board('b._scroll') + 6}, 2);`);
+    await sleep(300);
+    await type(' more');
+    await pause();
+    assert.deepEqual(notes()['draft.json'].items, ['first', 'second more']);
+    assert.equal(board('b._composer !== null'), true);
+    await tap('esc');
+    await sleep(400);
+    assert.deepEqual(notes()['draft.json'].items, ['first', 'second more']);
+});
+
+test('a new note emptied again leaves nothing behind, even after an autosave', async () => {
+    board('b.newNote()');
+    await sleep(300);
+    await type('Gone');
+    await tap('enter');
+    await type('soon');
+    await pause();
+    assert.ok(notes()['gone.json']);
+    for (let i = 0; i < 4; i++)
+        await tap('back');
+    await tap('back');
+    for (let i = 0; i < 4; i++)
+        await tap('back');
+    await tap('esc');
+    await sleep(500);
+    assert.equal(notes()['gone.json'], undefined);
+    assert.equal(layout()['gone.json'], undefined);
+    assert.equal(board('b._composer'), null);
+});
+
 test('nothing logged an error', () => {
     assert.deepEqual(errors(), []);
 });

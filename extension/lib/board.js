@@ -27,6 +27,7 @@ const DOUBLE_CLICK_MS = 400;
 const ADD_ROWS = 2;
 const UNDO_SECONDS = 8;
 const MORE_SIZE = 36;
+const AUTOSAVE_MS = 1500;
 
 const {EASE_OUT_QUINT, EASE_OUT_QUAD, EASE_OUT_BACK} = Clutter.AnimationMode;
 const MOTION = {
@@ -508,6 +509,9 @@ export class Board {
             save();
             return true;
         } catch (e) {
+            // The next try will say so, if it comes to that.
+            if (hint === null)
+                return false;
             Main.notifyError(strings.saveFailed, hint ? `${e.message}\n${hint}` : e.message);
             return false;
         }
@@ -880,10 +884,15 @@ export class Board {
     _openComposer(card, keepFocus, spot = null) {
         card.setEditing(true);
         this._sheet.set_child_above_sibling(card.actor, null);
+        const startedNew = Boolean(card.isNew);
         this._composer = new Composer(card, {
-            onGrow: () => this._fit(card),
+            onGrow: () => {
+                this._fit(card);
+                this._queueAutosave();
+            },
             onFinish: (values, changes) => this._closeComposer(values, changes, keepFocus),
         });
+        this._composer.startedNew = startedNew;
         this._composer.focus(spot);
         this._fit(card);
     }
@@ -898,12 +907,60 @@ export class Board {
         this._reveal(this._rectOf(this._layout.find(i => i.id === card.file), grid));
     }
 
+    // Text only in memory would be lost if the session ended right now, as
+    // logging out or a crash does without any warning.
+    _queueAutosave() {
+        if (this._autosaveId)
+            GLib.source_remove(this._autosaveId);
+        this._autosaveId = GLib.timeout_add(GLib.PRIORITY_DEFAULT, AUTOSAVE_MS, () => {
+            this._autosaveId = 0;
+            this._autosave();
+            return GLib.SOURCE_REMOVE;
+        });
+    }
+
+    _cancelAutosave() {
+        if (this._autosaveId)
+            GLib.source_remove(this._autosaveId);
+        this._autosaveId = 0;
+    }
+
+    _autosave() {
+        const composer = this._composer;
+        if (!composer)
+            return;
+        const {card} = composer;
+        const values = composer.values();
+        const changes = composer.changes();
+        if (isBlank(values) || !Object.keys(changes).length)
+            return;
+        const date = isoDay(new Date());
+        // A new note gets its file name from its title, so that waits until
+        // the title has been left behind.
+        if (card.isNew && !values.items.length && !values.next)
+            return;
+        const saved = card.isNew
+            ? this._saveNew(card, {...values, date}, null)
+            : this._saveEdit(card, {...changes, date}, null);
+        if (saved) {
+            composer.madeFile ||= composer.startedNew;
+            composer.markSaved();
+        }
+    }
+
     // Says whether the composer may close. It stays open the first time saving
     // fails, so the text isn't lost to a full disk. A second try gives up.
     _closeComposer(values, changes, keepFocus) {
         const composer = this._composer;
         const {card} = composer;
+        this._cancelAutosave();
         const blank = isBlank(values);
+        // Started and emptied again in one go: it should leave nothing, even
+        // if it had got as far as a file by then.
+        if (blank && composer.madeFile) {
+            this._safely(() => this._store.trash(card.file));
+            card.isNew = true;
+        }
         const edited = Object.keys(changes).length > 0 && !blank;
         const hint = composer.failed ? '' : strings.saveFailedKeep;
         const date = isoDay(new Date());
@@ -1056,6 +1113,7 @@ export class Board {
         }
         if (this._reloadId)
             GLib.source_remove(this._reloadId);
+        this._cancelAutosave();
         GLib.source_remove(this._clockId);
         global.display.disconnect(this._restackedId);
         global.window_manager.disconnect(this._mapId);
