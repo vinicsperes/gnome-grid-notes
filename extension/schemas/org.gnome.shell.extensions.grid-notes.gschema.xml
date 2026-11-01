@@ -18,5 +18,9 @@
       <summary>Keep the notes out of sight</summary>
       <description>Kept across locking the screen, which would otherwise bring them back in the middle of a screen share.</description>
     </key>
+    <key name="welcomed" type="b">
+      <default>false</default>
+      <summary>Whether the first-run note has been offered</summary>
+    </key>
   </schema>
 </schemalist>

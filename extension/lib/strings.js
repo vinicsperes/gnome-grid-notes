@@ -14,6 +14,16 @@ const STRINGS = {
         confirmDelete: 'delete?',
         deleted: 'Note deleted',
         undo: 'Undo',
+        welcome: {
+            title: 'Welcome to Grid Notes',
+            items: [
+                {text: 'Tick this box', done: false},
+                {text: 'Drag this note somewhere else', done: false},
+                {text: 'Pull a bottom corner to resize it', done: false},
+                {text: 'Double click it to write', done: false},
+            ],
+            next: 'Ctrl+Alt+N writes a new note. When you are done here, delete this one with ×.',
+        },
         prefs: {
             shortcuts: 'Shortcuts',
             shortcutsHint: 'Press a new combination with Ctrl, Alt or Super. Esc cancels, Backspace turns the shortcut off.',
@@ -44,6 +54,16 @@ const STRINGS = {
         confirmDelete: 'apagar?',
         deleted: 'Nota apagada',
         undo: 'Desfazer',
+        welcome: {
+            title: 'Bem-vindo ao Grid Notes',
+            items: [
+                {text: 'Marque esta caixinha', done: false},
+                {text: 'Arraste esta nota para outro lugar', done: false},
+                {text: 'Puxe um canto de baixo para redimensionar', done: false},
+                {text: 'Dê dois cliques para escrever', done: false},
+            ],
+            next: 'Ctrl+Alt+N cria uma nota nova. Quando terminar aqui, apague esta com o ×.',
+        },
         prefs: {
             shortcuts: 'Atalhos',
             shortcutsHint: 'Pressione uma combinação nova com Ctrl, Alt ou Super. Esc cancela, Backspace desliga o atalho.',
