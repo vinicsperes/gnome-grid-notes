@@ -26,6 +26,8 @@ on your desktop.
 - **Resize** from either bottom corner, in whole grid steps
 - **Write in place**: the card grows as you type, pushing its neighbours along
 - **Checkboxes**: any line can be one, ticked with a click right on the card
+- **Undo**: a deleted note can be brought back to the same place for a few seconds
+- **Scrolls when it has to**: notes taller than the screen stay within reach
 - **Works over your windows**: one shortcut brings the notes forward to jot
   something down or rearrange them, and Esc sends them back
 - **Plain files**: edit, add or delete a file and the desktop follows right away
@@ -74,7 +76,8 @@ make install
 | Resize a note | Drag a bottom corner |
 | Edit a note | Double click it |
 | Tick a checkbox | Click it |
-| Delete a note | **×** in its corner, twice. It goes to the trash |
+| Delete a note | **×** in its corner, twice, then **Undo** if that was a mistake. After that it's in the trash |
+| Scroll, when the notes don't fit | The wheel or touchpad over a note, or the arrow at the bottom |
 
 Shortcuts can be changed with `gsettings` under
 `org.gnome.shell.extensions.grid-notes`, using the extension's `schemas` folder.
