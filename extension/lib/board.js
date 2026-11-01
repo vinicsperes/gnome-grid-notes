@@ -358,6 +358,7 @@ export class Board {
     _wire(card) {
         const {actor} = card;
         card.onDelete = () => this._delete(card);
+        card.onToggle = index => this._toggle(card, index);
         actor.connect('button-press-event', (_, event) => this._onPress(card, event));
         actor.connect('motion-event', (_, event) => this._onMotion(event));
         actor.connect('button-release-event', (_, event) => this._onRelease(event));
@@ -452,13 +453,15 @@ export class Board {
         if (this._gesture || event.get_button() !== Clutter.BUTTON_PRIMARY)
             return Clutter.EVENT_PROPAGATE;
         if (this._composer) {
-            if (card !== this._composer.card)
-                this._composer.finish();
+            // Inside the card being written, the text and its markers handle it.
+            if (card === this._composer.card)
+                return Clutter.EVENT_PROPAGATE;
+            this._composer.finish();
             return Clutter.EVENT_STOP;
         }
         // A press on the button bubbles up to here, and grabbing the pointer
         // would keep the button from ever seeing its release.
-        if (global.stage.get_event_actor(event) === card.close)
+        if (card.isControl(global.stage.get_event_actor(event)))
             return Clutter.EVENT_PROPAGATE;
         // It has no way to save a position, so it stays put.
         if (card.error)
@@ -775,6 +778,16 @@ export class Board {
         card.isNew = false;
         this._cards.set(file, card);
         return true;
+    }
+
+    // Ticking a box isn't editing the note, so its date stays as it was.
+    _toggle(card, index) {
+        const item = card.note.items[index];
+        const done = !item.done;
+        let saved = false;
+        this._safely(() => (saved = this._store.saveDone(card.file, index, item.text, done)));
+        if (saved)
+            card.setDone(index, done);
     }
 
     _delete(card) {

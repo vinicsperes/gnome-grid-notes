@@ -5,9 +5,11 @@ import Pango from 'gi://Pango';
 import St from 'gi://St';
 
 import {whenText, wrapped} from './card.js';
+import {buildMark, setDoneStyle, setMark} from './mark.js';
+import {itemDone, itemText, makeItem} from './notes.js';
 import {strings} from './strings.js';
 
-const {KEY_Return, KEY_KP_Enter, KEY_Escape, KEY_Tab, KEY_ISO_Left_Tab, KEY_BackSpace, KEY_Up, KEY_Down} = Clutter;
+const {KEY_Return, KEY_KP_Enter, KEY_Escape, KEY_Tab, KEY_ISO_Left_Tab, KEY_BackSpace, KEY_Up, KEY_Down, KEY_t, KEY_T} = Clutter;
 
 function buildEntry(text, hint, styleClass) {
     const entry = new St.Entry({
@@ -67,7 +69,7 @@ export class Composer {
         card.body.add_child(head);
 
         for (const item of note.items)
-            this._addRow(item);
+            this._addRow(itemText(item), null, false, itemDone(item));
         if (note.next)
             this._showNext(note.next);
         this._initial = JSON.stringify(this.values());
@@ -99,13 +101,16 @@ export class Composer {
         return entry;
     }
 
-    _addRow(text = '', after = null, animate = false) {
+    _addRow(text = '', after = null, animate = false, done = null) {
         const box = new St.BoxLayout({style_class: 'mural-row'});
-        box.add_child(new St.Label({text: '•', style_class: 'mural-bullet'}));
+        const mark = buildMark(done);
+        box.add_child(mark);
         const entry = this._wire(buildEntry(text, strings.itemHint, 'mural-item'));
         box.add_child(entry);
+        setDoneStyle(entry, done);
 
-        const row = {box, entry};
+        const row = {box, mark, entry, done};
+        mark.connect('clicked', () => this._cycle(row));
         const index = after ? this._rows.indexOf(after) + 1 : this._rows.length;
         this._rows.splice(index, 0, row);
         // The body holds the head, then the rows, then the next box.
@@ -115,6 +120,13 @@ export class Composer {
             this._onGrow();
         }
         return row;
+    }
+
+    // Bullet, empty checkbox, ticked checkbox, and back to a bullet.
+    _cycle(row) {
+        row.done = row.done === null ? false : row.done === false ? true : null;
+        setMark(row.mark, row.done);
+        setDoneStyle(row.entry, row.done);
     }
 
     _removeRow(row) {
@@ -157,6 +169,12 @@ export class Composer {
         const row = this._rows.find(r => r.entry === entry);
 
         switch (key) {
+        case KEY_t:
+        case KEY_T:
+            if (!control || !row)
+                return Clutter.EVENT_PROPAGATE;
+            this._cycle(row);
+            return Clutter.EVENT_STOP;
         case KEY_Escape:
             this.finish();
             return Clutter.EVENT_STOP;
@@ -206,7 +224,8 @@ export class Composer {
         } else if (entry === this._title) {
             (this._rows[0] ?? this._addRow('', null, true)).entry.grab_key_focus();
         } else if (row.entry.text.trim()) {
-            this._addRow('', row, true).entry.grab_key_focus();
+            // A list of checkboxes carries on as one.
+            this._addRow('', row, true, row.done === null ? null : false).entry.grab_key_focus();
         } else {
             this._openNext();
             this._removeRow(row);
@@ -216,7 +235,8 @@ export class Composer {
     values() {
         return {
             title: this._title.text.trim(),
-            items: this._rows.map(r => r.entry.text.trim()).filter(Boolean),
+            items: this._rows.filter(r => r.entry.text.trim())
+                .map(r => makeItem(r.entry.text.trim(), r.done)),
             next: this._next?.text.trim() ?? '',
         };
     }

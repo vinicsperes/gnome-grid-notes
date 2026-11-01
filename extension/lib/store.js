@@ -3,7 +3,7 @@
 import Gio from 'gi://Gio';
 import GLib from 'gi://GLib';
 
-import {emptyNote, fileNameFor, parseNote, withContent, withGrid} from './notes.js';
+import {emptyNote, fileNameFor, parseNote, withContent, withDone, withGrid} from './notes.js';
 
 // Notes are read on the shell's main thread, so a file has to be small enough
 // to do no harm there. Far more text than any card could show.
@@ -92,17 +92,29 @@ export class NoteStore {
     // looked, and a position is no reason to bring back old contents or a file
     // that was deleted. If it can't be read, the position just isn't saved.
     saveGrid(file, grid) {
+        return this._patch(file, text => withGrid(text, grid));
+    }
+
+    // Says whether anything was written. Not writing means the line changed on
+    // disk, and the reload on its way will show what's there now.
+    saveDone(file, index, label, done) {
+        return this._patch(file, text => withDone(text, index, label, done));
+    }
+
+    _patch(file, change) {
         let text, updated;
         try {
             text = this._load(file);
-            updated = withGrid(text, grid);
+            updated = change(text);
         } catch (e) {
             if (e instanceof GLib.Error && !e.matches(Gio.IOErrorEnum, Gio.IOErrorEnum.NOT_FOUND))
                 throw e;
-            return;
+            return false;
         }
-        if (updated !== text)
-            this._writeOver(file, text, updated);
+        if (updated === text)
+            return false;
+        this._writeOver(file, text, updated);
+        return true;
     }
 
     // Same idea for an edit: only the fields that were changed get replaced.

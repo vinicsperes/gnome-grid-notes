@@ -31,8 +31,33 @@
   margin-top: 2px;
 }
 
-.mural-row { spacing: 8px; margin-bottom: 6px; }
+.mural-row { spacing: 4px; margin-bottom: 6px; }
+
+/* The same slot for a bullet or a checkbox, so text lines up either way. */
+.mural-mark { width: 18px; height: 18px; }
 .mural-bullet { color: rgba(236, 232, 240, 0.3); }
+.mural-mark:hover .mural-bullet { color: #ff4a6e; }
+
+.mural-check {
+  width: 13px;
+  height: 13px;
+  border-radius: 4px;
+  border: 1px solid rgba(236, 232, 240, 0.5);
+}
+
+.mural-mark:hover .mural-check { border-color: #ff4a6e; }
+
+.mural-check-done {
+  background-color: #ff4a6e;
+  border-color: #ff4a6e;
+}
+
+.mural-check-icon { icon-size: 11px; color: #12080f; }
+
+.mural-item-done {
+  color: rgba(236, 232, 240, 0.42);
+  text-decoration: line-through;
+}
 
 .mural-next {
   margin-top: 8px;
@@ -111,6 +136,7 @@
 
 .mural-entry.mural-title { color: #f5f2f7; }
 .mural-entry.mural-next-text { color: #f5f2f7; }
+.mural-entry.mural-item-done { color: rgba(236, 232, 240, 0.42); }
 
 .mural-card-editing,
 .mural-card-editing:hover {

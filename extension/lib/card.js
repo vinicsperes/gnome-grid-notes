@@ -6,7 +6,8 @@ import Graphene from 'gi://Graphene';
 import Pango from 'gi://Pango';
 import St from 'gi://St';
 
-import {daysSince} from './notes.js';
+import {buildMark, setDoneStyle, setMark, staticBullet} from './mark.js';
+import {daysSince, itemDone, itemText} from './notes.js';
 import {strings} from './strings.js';
 
 const ARMED_MS = 2500;
@@ -161,12 +162,23 @@ export class Card {
             this.body.add_child(head);
 
         const items = this.error ? [strings.unreadable(this.error)] : note.items;
-        for (const item of items) {
+        this._checks = new Map();
+        items.forEach((item, index) => {
             const row = new St.BoxLayout({style_class: 'mural-row'});
-            row.add_child(new St.Label({text: '•', style_class: 'mural-bullet'}));
-            row.add_child(wrapped(item, 'mural-item'));
+            const done = itemDone(item);
+            const label = wrapped(itemText(item), 'mural-item');
+            if (done === null) {
+                row.add_child(staticBullet());
+            } else {
+                const mark = buildMark(done);
+                mark.connect('clicked', () => this.onToggle?.(index));
+                row.add_child(mark);
+                setDoneStyle(label, done);
+                this._checks.set(index, {mark, label});
+            }
+            row.add_child(label);
             this.body.add_child(row);
-        }
+        });
 
         if (note.next) {
             const next = new St.BoxLayout({
@@ -177,6 +189,22 @@ export class Card {
             next.add_child(wrapped(note.next, 'mural-next-text'));
             this.body.add_child(next);
         }
+    }
+
+    // Changed in place: this runs from the checkbox's own click, too early to
+    // destroy it, and ticking a box doesn't change how much room the card needs.
+    setDone(index, done) {
+        const {note} = this;
+        note.items = note.items.with(index, {...note.items[index], done});
+        const {mark, label} = this._checks.get(index);
+        setMark(mark, done);
+        setDoneStyle(label, done);
+    }
+
+    // Buttons on the card that have to see their own press and release.
+    isControl(actor) {
+        return actor === this.close ||
+            [...this._checks.values()].some(({mark}) => mark === actor);
     }
 
     // The pixel height the contents need when the card is this wide. Measured
