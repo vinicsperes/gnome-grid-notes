@@ -24,7 +24,8 @@ on your desktop.
 
 - **Drag** cards around. They always land on the grid, and the rest make room
 - **Resize** from either bottom corner, in whole grid steps
-- **Write in place**: the card grows as you type, pushing its neighbours along
+- **Write in place**: the card grows as you type, pushing its neighbours along,
+  and what you write is saved as you go
 - **Checkboxes**: any line can be one, ticked with a click right on the card
 - **Undo**: a deleted note can be brought back to the same place for a few seconds
 - **Scrolls when it has to**: notes taller than the screen stay within reach
@@ -87,6 +88,7 @@ While writing:
 | Key | Does |
 | --- | --- |
 | `Enter` | Next line, or a new bullet |
+| `Ctrl` `V` with a list | Each line of it becomes a line of the note |
 | `Enter` on an empty bullet | Moves on to the next step |
 | `Backspace` on an empty line | Removes it |
 | `Ctrl` `T`, or a click on the bullet | Bullet, checkbox, ticked, and back to a bullet |
