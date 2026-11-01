@@ -1,7 +1,8 @@
 // Talks to the headless shell from tools/headless.sh over D-Bus.
-import {execFileSync} from 'node:child_process';
+import {execFileSync, spawn} from 'node:child_process';
 import {readdirSync, readFileSync, writeFileSync, rmSync} from 'node:fs';
 import {join} from 'node:path';
+import {fileURLToPath} from 'node:url';
 import {setTimeout as sleep} from 'node:timers/promises';
 
 const BOARD = "Main.extensionManager.lookup('grid-notes@desktop').stateObj._board";
@@ -44,6 +45,22 @@ export async function drive(code) {
         evaluate('delete globalThis.__error; 0');
         throw new Error(error);
     }
+}
+
+// Opens a real application window and waits until it has a place on screen,
+// which can come well after the window first exists.
+export async function openWindow(size = '1800x900') {
+    spawn('gjs', ['-m', fileURLToPath(new URL('window.js', import.meta.url))], {
+        env: {...process.env, WAYLAND_DISPLAY: 'grid-notes-0', GDK_BACKEND: 'wayland', GRID_NOTES_WINDOW: size},
+        stdio: 'ignore',
+        detached: true,
+    }).unref();
+    const width = () => board('global.get_window_actors()[0]?.meta_window.get_frame_rect().width ?? 0');
+    for (let i = 0; i < 80 && !width(); i++)
+        await sleep(250);
+    if (!width())
+        throw new Error('the window never opened');
+    await sleep(300);
 }
 
 export const layout = () => Object.fromEntries(

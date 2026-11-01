@@ -1,9 +1,7 @@
 import assert from 'node:assert/strict';
-import {spawn} from 'node:child_process';
 import {test} from 'node:test';
-import {fileURLToPath} from 'node:url';
 
-import {board, drive, errors, rect, sleep} from './shell.js';
+import {board, drive, errors, openWindow, rect, sleep} from './shell.js';
 
 const FILE = '6-cli.json';
 const card = `b._cards.get('${FILE}')`;
@@ -41,14 +39,7 @@ function overlap() {
 }
 
 test('double clicking a note leaves it and any uncovered note still', async () => {
-    spawn('gjs', ['-m', fileURLToPath(new URL('window.js', import.meta.url))], {
-        env: {...process.env, WAYLAND_DISPLAY: 'grid-notes-0', GDK_BACKEND: 'wayland', GRID_NOTES_WINDOW: '500x300'},
-        stdio: 'ignore',
-        detached: true,
-    }).unref();
-    for (let i = 0; i < 60 && !board('global.get_window_actors().length'); i++)
-        await sleep(250);
-    await sleep(800);
+    await openWindow('500x300');
 
     const {covered, clear} = overlap();
     assert.ok(covered.length > 0 && clear.length > 1, `covered ${covered}, clear ${clear}`);

@@ -1,9 +1,7 @@
 import assert from 'node:assert/strict';
-import {spawn} from 'node:child_process';
 import {test} from 'node:test';
-import {fileURLToPath} from 'node:url';
 
-import {board, drive, errors, evaluate, rect, sleep} from './shell.js';
+import {board, drive, errors, evaluate, openWindow, rect, sleep} from './shell.js';
 
 const under = (x, y) => evaluate(
     `global.stage.get_actor_at_pos(Clutter.PickMode.REACTIVE, ${x}, ${y}).style_class ?? 'other'`);
@@ -15,14 +13,7 @@ test('with no windows, a card is what the pointer finds', () => {
 });
 
 test('an open window covers the cards and gets the clicks', async () => {
-    spawn('gjs', ['-m', fileURLToPath(new URL('window.js', import.meta.url))], {
-        env: {...process.env, WAYLAND_DISPLAY: 'grid-notes-0', GDK_BACKEND: 'wayland'},
-        stdio: 'ignore',
-        detached: true,
-    }).unref();
-    for (let i = 0; i < 60 && !board('global.get_window_actors().length'); i++)
-        await sleep(250);
-    await sleep(800);
+    await openWindow();
     assert.ok(board('global.get_window_actors().length') > 0, 'window opened');
     const r = rect('2-thesis.json');
     assert.notEqual(under(r.x + 100, r.y + 60), 'grid-notes-card');
