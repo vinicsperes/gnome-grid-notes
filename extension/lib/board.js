@@ -249,7 +249,7 @@ export class Board {
         more.ease({
             opacity: needed ? 255 : 0,
             ...MOTION.fade,
-            onStopped: () => {
+            onComplete: () => {
                 if (!more.reactive)
                     more.hide();
             },
