@@ -167,6 +167,59 @@ test('hiding from outside waits for a card in the hand to land', async () => {
     assert.equal(board('b.layer.visible'), true);
 });
 
+test('the preferences window opens', async () => {
+    const env = {...process.env, WAYLAND_DISPLAY: 'grid-notes-0', GDK_BACKEND: 'wayland'};
+    spawn('gnome-extensions', ['prefs', 'grid-notes@desktop'], {env, stdio: 'ignore', detached: true}).unref();
+    const windows = () => board('global.get_window_actors().map(a => a.meta_window.get_title())');
+    for (let i = 0; i < 60 && !windows().length; i++)
+        await sleep(250);
+    await sleep(1500);
+    assert.deepEqual(windows(), ['Grid Notes']);
+    if (process.env.GRID_NOTES_SHOT)
+        screenshot(process.env.GRID_NOTES_SHOT);
+});
+
+// Where the first shortcut's button sits in the window, as laid out by the toolkit.
+const changeButton = () => {
+    const [x, y] = board('(f => [f.x, f.y])(global.get_window_actors()[0].meta_window.get_frame_rect())');
+    return [x + 528, y + 174];
+};
+
+test('a shortcut changed there works right away', async () => {
+    const [x, y] = changeButton();
+    await drive(`await driver.click(${x}, ${y}); await driver.wait(200);`);
+    await chord('j');
+    await sleep(300);
+    assert.match(gsettings('get', 'new-note'), /<(Control|Primary)><Alt>j/);
+    await chord('j');
+    await sleep(400);
+    assert.equal(board('b._composer !== null'), true, 'the new one opens a note');
+    await key('Escape');
+    await sleep(400);
+    await chord('n');
+    await sleep(300);
+    assert.equal(board('b._composer'), null, 'the old one no longer does');
+});
+
+test('a plain letter is not accepted, and Esc leaves things as they were', async () => {
+    const [x, y] = changeButton();
+    await drive(`await driver.click(${x}, ${y}); await driver.wait(200);`);
+    await key('q');
+    await sleep(200);
+    assert.match(gsettings('get', 'new-note'), /<Alt>j/);
+    await key('Escape');
+    await sleep(200);
+    assert.match(gsettings('get', 'new-note'), /<Alt>j/);
+});
+
+test('Backspace turns a shortcut off', async () => {
+    const [x, y] = changeButton();
+    await drive(`await driver.click(${x}, ${y}); await driver.wait(200);`);
+    await key('BackSpace');
+    await sleep(300);
+    assert.match(gsettings('get', 'new-note'), /\[\]/);
+});
+
 test('no errors in the shell', () => {
     assert.deepEqual(errors(), []);
 });
