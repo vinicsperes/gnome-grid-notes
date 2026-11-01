@@ -25,6 +25,7 @@ const MAX_TILT = 3.5;
 const ARRIVAL_STAGGER = 45;
 const DOUBLE_CLICK_MS = 400;
 const ADD_ROWS = 2;
+const UNDO_SECONDS = 8;
 const MORE_SIZE = 36;
 
 const {EASE_OUT_QUINT, EASE_OUT_QUAD, EASE_OUT_BACK} = Clutter.AnimationMode;
@@ -54,6 +55,7 @@ export class Board {
         this._gesture = null;
         this._composer = null;
         this._focus = null;
+        this._undo = null;
         this._scroll = 0;
 
         this.layer = new Clutter.Actor({name: 'grid-notes'});
@@ -68,6 +70,7 @@ export class Board {
         this._sheet.add_child(this._ghost);
         this._buildAddButton();
         this._buildMoreButton();
+        this._buildUndoToast();
 
         this._restackedId = global.display.connect('restacked', () => this._syncStack());
         this._mapId = global.window_manager.connect_after('map', () => this._syncStack());
@@ -253,6 +256,49 @@ export class Board {
         });
     }
 
+    _buildUndoToast() {
+        this._toast = new St.BoxLayout({style_class: 'grid-notes-toast', opacity: 0, visible: false});
+        this._toast.add_child(new St.Label({
+            text: strings.deleted,
+            y_align: Clutter.ActorAlign.CENTER,
+        }));
+        const button = new St.Button({style_class: 'grid-notes-toast-undo', label: strings.undo});
+        button.set_cursor_type(Clutter.CursorType.POINTER);
+        button.connect('clicked', () => this._undoDelete());
+        this._toast.add_child(button);
+        this.layer.add_child(this._toast);
+    }
+
+    // In the column the card just left, which is where the person is looking,
+    // below the cards there so that it covers none of them.
+    _showToast(item) {
+        const {_toast: toast} = this;
+        const area = this._workArea();
+        const grid = this._metrics();
+        const {px: x, py: top} = grid.toPixels(item);
+        const below = this._layout
+            .filter(other => other.x < item.x + item.w && item.x < other.x + other.w)
+            .map(other => {
+                const rect = this._rectOf(other, grid);
+                return rect.y + rect.height + SIZES.gap;
+            });
+        const y = Math.max(top, ...below) - this._scroll;
+        toast.remove_all_transitions();
+        toast.show();
+        const [, width] = toast.get_preferred_width(-1);
+        const [, height] = toast.get_preferred_height(-1);
+        toast.set_position(
+            Math.max(area.x, Math.min(x, area.x + area.width - width)),
+            Math.max(area.y, Math.min(y, area.y + area.height - height)));
+        toast.ease({opacity: 255, ...MOTION.fade});
+    }
+
+    _hideToast() {
+        const {_toast: toast} = this;
+        toast.remove_all_transitions();
+        toast.ease({opacity: 0, ...MOTION.fade, onComplete: () => toast.hide()});
+    }
+
     // Sits exactly where a new note would go, so writing one starts from here.
     _syncAddButton(grid) {
         const slot = this._addSlot(grid);
@@ -358,7 +404,8 @@ export class Board {
             this._reloadPending = true;
             return;
         }
-        const entries = this._store.list();
+        // A note waiting to be deleted is still on disk, but already gone here.
+        const entries = this._store.list().filter(e => e.file !== this._undo?.file);
         const seen = new Set(entries.map(e => e.file));
         // An empty board still has to place the add button.
         let dirty = this._cards.size === 0;
@@ -928,10 +975,51 @@ export class Board {
             card.setDone(index, done);
     }
 
+    // The file stays where it is until the chance to undo is over, so undoing
+    // can't fail, and a crash in between loses nothing.
     _delete(card) {
-        if (!this._safely(() => this._store.trash(card.file)))
-            return;
+        this._finishDelete();
+        const item = this._layout.find(i => i.id === card.file);
+        const {x, y} = item;
+        const timer = GLib.timeout_add_seconds(GLib.PRIORITY_DEFAULT, UNDO_SECONDS, () => {
+            this._undo.timer = 0;
+            this._finishDelete();
+            return GLib.SOURCE_REMOVE;
+        });
+        this._undo = {file: card.file, x, y, timer};
         this._dropCard(card);
+        this._persist();
+        this._showToast(item);
+    }
+
+    _forgetUndo() {
+        const undo = this._undo;
+        if (undo?.timer)
+            GLib.source_remove(undo.timer);
+        this._undo = null;
+        this._hideToast();
+        return undo;
+    }
+
+    _finishDelete() {
+        const undo = this._forgetUndo();
+        if (!undo)
+            return;
+        // A note that can't be deleted comes back rather than quietly staying
+        // on disk with no card.
+        if (!this._safely(() => this._store.trash(undo.file)))
+            this._queueReload();
+    }
+
+    _undoDelete() {
+        const undo = this._forgetUndo();
+        if (!undo)
+            return;
+        this._reload();
+        // Back to the same place, with the others making room again.
+        const grid = this._metrics();
+        this._layout = move(this._layout, undo.file, undo.x, undo.y, grid.cols);
+        this._applyLayout(grid);
         this._persist();
     }
 
@@ -960,6 +1048,7 @@ export class Board {
         this._composer?.finish();
         this._composer?.finish();
         this.leaveFocus();
+        this._finishDelete();
         if (this._gesture) {
             this._gesture.grab.dismiss();
             if (this._gesture.tiltId)

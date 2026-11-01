@@ -161,6 +161,27 @@
   color: #ff4a6e;
 }
 
+.grid-notes-toast {
+  spacing: 12px;
+  padding: 8px 8px 8px 16px;
+  border-radius: 12px;
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  background-color: rgba(12, 8, 16, 0.97);
+  box-shadow: 0 10px 28px rgba(0, 0, 0, 0.55);
+  color: rgba(236, 232, 240, 0.82);
+  font-family: "Ubuntu Sans", sans-serif;
+  font-size: 13px;
+}
+
+.grid-notes-toast-undo {
+  padding: 4px 10px;
+  border-radius: 8px;
+  color: #ff4a6e;
+  font-weight: bold;
+}
+
+.grid-notes-toast-undo:hover { background-color: rgba(229, 15, 61, 0.14); }
+
 /* An empty slot at the next free place on the grid. */
 .grid-notes-add {
   border-radius: 14px;
