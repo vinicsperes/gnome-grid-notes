@@ -146,14 +146,14 @@ test('notes can still be dragged while in front of the windows', async () => {
 });
 
 test('the real keyboard shortcuts work, including from in front of the windows', async () => {
-    const chord = key => drive(`await driver.tap(Clutter.KEY_${key}, Clutter.KEY_Super_L, Clutter.KEY_Shift_L);`);
-    await chord('M');
+    const chord = key => drive(`await driver.tap(Clutter.KEY_${key}, Clutter.KEY_Control_L, Clutter.KEY_Alt_L);`);
+    await chord('m');
     await sleep(300);
     assert.equal(board('b._focus !== null'), true, 'opens');
-    await chord('M');
+    await chord('m');
     await sleep(300);
     assert.equal(board('b._focus'), null, 'closes');
-    await chord('N');
+    await chord('n');
     await sleep(300);
     assert.equal(board('b._composer !== null'), true, 'new note');
     await tap('esc');

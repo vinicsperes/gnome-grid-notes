@@ -2,11 +2,11 @@
 <schemalist>
   <schema id="org.gnome.shell.extensions.mural" path="/org/gnome/shell/extensions/mural/">
     <key name="new-note" type="as">
-      <default><![CDATA[['<Shift><Super>n']]]></default>
+      <default><![CDATA[['<Control><Alt>n']]]></default>
       <summary>Write a new note</summary>
     </key>
     <key name="toggle-focus" type="as">
-      <default><![CDATA[['<Shift><Super>m']]]></default>
+      <default><![CDATA[['<Control><Alt>m']]]></default>
       <summary>Bring the notes in front of your windows</summary>
     </key>
   </schema>

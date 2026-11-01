@@ -54,8 +54,8 @@ Your notes stay where they are.
 
 | Action | How |
 | --- | --- |
-| New note | `Shift` `Super` `N`, or the **+** slot on the board |
-| Bring notes in front of your windows | `Shift` `Super` `M` |
+| New note | `Ctrl` `Alt` `N`, or the **+** slot on the board |
+| Bring notes in front of your windows | `Ctrl` `Alt` `M`, and `Esc` to send them back |
 | Move a note | Drag it |
 | Resize a note | Drag a bottom corner |
 | Edit a note | Double click it |
