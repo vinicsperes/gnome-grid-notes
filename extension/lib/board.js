@@ -53,8 +53,9 @@ function isDesktop(window) {
 }
 
 export class Board {
-    constructor(store) {
+    constructor(store, settings) {
         this._store = store;
+        this._settings = settings;
         this._cards = new Map();
         this._layout = [];
         this._gesture = null;
@@ -94,6 +95,55 @@ export class Board {
 
         this._syncStack();
         this._reload();
+        this._hiddenId = settings.connect('changed::hidden', () => this._syncHidden());
+        this._syncHidden(false);
+    }
+
+    // Out of sight until asked for again, and through locking the screen too.
+    // Asking for a note is asking for them back.
+    toggleHidden() {
+        if (!this._gesture)
+            this._settings.set_boolean('hidden', !this._settings.get_boolean('hidden'));
+    }
+
+    _comeBack() {
+        if (this._settings.get_boolean('hidden'))
+            this._settings.set_boolean('hidden', false);
+        this._syncHidden(false);
+    }
+
+    _syncHidden(animate = true) {
+        const hidden = this._settings.get_boolean('hidden');
+        const {layer} = this;
+        // Can come from the preferences at any moment, but a card in the hand
+        // has to land first.
+        if (hidden === this._hidden || this._gesture)
+            return;
+        this._hidden = hidden;
+        if (hidden) {
+            // Nothing left half done where it can't be seen or undone.
+            this._composer?.finish();
+            this._composer?.finish();
+            this.leaveFocus();
+            this._finishDelete();
+        } else {
+            layer.show();
+        }
+        layer.remove_transition('opacity');
+        const opacity = hidden ? 0 : 255;
+        if (animate) {
+            layer.ease({
+                opacity,
+                ...MOTION.fade,
+                onComplete: () => {
+                    if (this._hidden)
+                        layer.hide();
+                },
+            });
+        } else {
+            layer.opacity = opacity;
+            layer.visible = !hidden;
+        }
     }
 
     _onScreenChanged() {
@@ -881,6 +931,7 @@ export class Board {
     toggleFocus() {
         if (this._gesture)
             return;
+        this._comeBack();
         if (this._focus)
             this.leaveFocus();
         else
@@ -890,6 +941,7 @@ export class Board {
     newNote() {
         if (this._composer || this._gesture)
             return;
+        this._comeBack();
         const wasFocused = Boolean(this._focus);
         this.enterFocus();
         const grid = this._metrics();
@@ -1127,6 +1179,7 @@ export class Board {
     }
 
     _catchUp() {
+        this._syncHidden();
         if (this._relayoutPending) {
             this._relayoutPending = false;
             this._relayout();
@@ -1155,6 +1208,7 @@ export class Board {
             GLib.source_remove(this._reloadId);
         this._cancelAutosave();
         GLib.source_remove(this._clockId);
+        this._settings.disconnect(this._hiddenId);
         global.display.disconnect(this._restackedId);
         global.window_manager.disconnect(this._mapId);
         global.display.disconnect(this._workareasId);

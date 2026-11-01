@@ -23,6 +23,59 @@ const close = async () => {
     await sleep(350);
 };
 
+test('the shortcut hides every note, and clicks go through to the desktop', async () => {
+    const r = rect('2-thesis.json');
+    await chord('h');
+    await sleep(400);
+    assert.equal(hidden(), true);
+    assert.equal(board('b.layer.visible'), false);
+    const under = evaluate(`(a => a.style_class ?? 'other')(global.stage.get_actor_at_pos(Clutter.PickMode.REACTIVE, ${r.x + 100}, ${r.y + 60}))`);
+    assert.notEqual(under, 'grid-notes-card');
+});
+
+test('hidden notes stay hidden when the screen locks and unlocks', async () => {
+    evaluate(`Main.extensionManager.disableExtension('grid-notes@desktop'); 0`);
+    await sleep(200);
+    evaluate(`Main.extensionManager.enableExtension('grid-notes@desktop'); 0`);
+    await sleep(600);
+    assert.equal(board('b.layer.visible'), false);
+});
+
+test('files written meanwhile are there when they come back', async () => {
+    writeNote('meanwhile.json', {title: 'Meanwhile'});
+    await sleep(400);
+    await chord('h');
+    await sleep(400);
+    assert.equal(hidden(), false);
+    assert.equal(board('b.layer.visible'), true);
+    assert.equal(board('b.layer.opacity'), 255);
+    assert.ok(layout()['meanwhile.json']);
+});
+
+test('asking for a new note brings them back', async () => {
+    await chord('h');
+    await sleep(400);
+    await chord('n');
+    await sleep(300);
+    assert.equal(hidden(), false);
+    assert.equal(board('b.layer.visible'), true);
+    assert.equal(board('b._composer !== null'), true);
+    await close();
+});
+
+test('hiding keeps what was being written and finishes a pending delete', async () => {
+    board('b.newNote()');
+    await sleep(200);
+    await type('Kept');
+    await chord('h');
+    await sleep(400);
+    assert.equal(board('b._composer'), null);
+    assert.equal(board('b._focus'), null);
+    assert.equal(notes()['kept.json'].title, 'Kept');
+    await chord('h');
+    await sleep(400);
+});
+
 test('moving a line with alt and the arrows', async () => {
     writeNote('list.json', {title: 'List', items: ['one', {text: 'two', done: true}, 'three'], grid: {x: 12, y: 0, w: 2}});
     await sleep(400);
@@ -96,6 +149,22 @@ test('away from the edge, a dragged card leaves the board where it is', async ()
     assert.equal(board('b._scroll'), 300);
     await drive('driver.release(); await driver.wait(60);');
     await sleep(400);
+});
+
+test('hiding from outside waits for a card in the hand to land', async () => {
+    const r = rect('tall.json');
+    await drive(`driver.move(${r.x + 150}, 500); await driver.wait(60); driver.press(); await driver.wait(40); driver.move(${r.x + 150}, 540); await driver.wait(60);`);
+    assert.notEqual(board('b._gesture'), null);
+    gsettings('set', 'hidden', 'true');
+    await sleep(300);
+    assert.equal(board('b.layer.visible'), true, 'not while being held');
+    await drive('driver.release(); await driver.wait(60);');
+    await sleep(500);
+    assert.equal(board('b._gesture'), null);
+    assert.equal(board('b.layer.visible'), false, 'as soon as it lands');
+    gsettings('set', 'hidden', 'false');
+    await sleep(400);
+    assert.equal(board('b.layer.visible'), true);
 });
 
 test('no errors in the shell', () => {

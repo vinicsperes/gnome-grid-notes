@@ -9,5 +9,14 @@
       <default><![CDATA[['<Control><Alt>m']]]></default>
       <summary>Bring the notes in front of your windows</summary>
     </key>
+    <key name="toggle-hidden" type="as">
+      <default><![CDATA[['<Control><Alt>h']]]></default>
+      <summary>Hide or show the notes</summary>
+    </key>
+    <key name="hidden" type="b">
+      <default>false</default>
+      <summary>Keep the notes out of sight</summary>
+      <description>Kept across locking the screen, which would otherwise bring them back in the middle of a screen share.</description>
+    </key>
   </schema>
 </schemalist>

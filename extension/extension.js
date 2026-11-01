@@ -14,17 +14,19 @@ export default class GridNotesExtension extends Extension {
         // First, since it's the one step that can fail on a broken install.
         const settings = this.getSettings();
         this._store = new NoteStore();
-        this._board = new Board(this._store);
+        this._board = new Board(this._store, settings);
 
         const bind = (name, handler) => Main.wm.addKeybinding(name, settings,
             Meta.KeyBindingFlags.IGNORE_AUTOREPEAT, SHORTCUT_MODES, handler);
         bind('new-note', () => this._board.newNote());
         bind('toggle-focus', () => this._board.toggleFocus());
+        bind('toggle-hidden', () => this._board.toggleHidden());
     }
 
     disable() {
         Main.wm.removeKeybinding('new-note');
         Main.wm.removeKeybinding('toggle-focus');
+        Main.wm.removeKeybinding('toggle-hidden');
         this._board.destroy();
         this._store.destroy();
         this._board = this._store = null;

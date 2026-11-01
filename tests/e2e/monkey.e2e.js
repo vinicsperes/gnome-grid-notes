@@ -62,6 +62,11 @@ const ACTIONS = {
     async focus() {
         board('b.toggleFocus()');
     },
+    async hide() {
+        await drive('await driver.tap(Clutter.KEY_h, Clutter.KEY_Control_L, Clutter.KEY_Alt_L);');
+        await sleep(between(0, 300));
+        await drive('await driver.tap(Clutter.KEY_h, Clutter.KEY_Control_L, Clutter.KEY_Alt_L);');
+    },
     async write() {
         board('b.newNote()');
         await sleep(120);
@@ -80,6 +85,8 @@ const ACTIONS = {
         await sleep(120);
         if (board('b._composer') !== null) {
             await typing(' x');
+            if (random() < 0.5)
+                await drive(`await driver.tap(Clutter.KEY_${pick(['Up', 'Down'])}, Clutter.KEY_Alt_L);`);
             await key('Escape');
         }
     },
@@ -111,6 +118,7 @@ const ACTIONS = {
 function check(step, name) {
     const where = `step ${step} (${name}), seed ${SEED}`;
     assert.equal(board('b._gesture'), null, `${where}: no gesture left behind`);
+    assert.equal(board('b.layer.visible && b.layer.opacity'), 255, `${where}: notes in view`);
     const items = board('b._layout');
     for (let i = 0; i < items.length; i++) {
         for (let j = i + 1; j < items.length; j++) {
