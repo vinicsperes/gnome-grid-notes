@@ -28,6 +28,10 @@ const ADD_ROWS = 2;
 const UNDO_SECONDS = 8;
 const MORE_SIZE = 36;
 const AUTOSAVE_MS = 1500;
+// How close to the top or bottom of the screen a dragged card starts scrolling.
+const EDGE_ZONE = 56;
+const EDGE_SPEED = 14;
+const EDGE_TICK_MS = 16;
 
 const {EASE_OUT_QUINT, EASE_OUT_QUAD, EASE_OUT_BACK} = Clutter.AnimationMode;
 const MOTION = {
@@ -658,6 +662,9 @@ export class Board {
             card,
             pressX: x,
             pressY: y,
+            pointerX: x,
+            pointerY: y,
+            startScroll: this._scroll,
             lastX: x,
             startX: actor.x,
             startY: actor.y,
@@ -679,13 +686,41 @@ export class Board {
                 return Clutter.EVENT_STOP;
             this._lift(gesture);
         }
+        gesture.pointerX = x;
+        gesture.pointerY = y;
+        this._follow(gesture);
+        this._tilt(gesture, x);
+        return Clutter.EVENT_STOP;
+    }
+
+    _follow(gesture) {
         const {actor} = gesture.card;
         actor.remove_transition('x');
         actor.remove_transition('y');
-        actor.set_position(gesture.startX + x - gesture.pressX, gesture.startY + y - gesture.pressY);
-        this._tilt(gesture, x);
+        actor.set_position(
+            gesture.startX + gesture.pointerX - gesture.pressX,
+            gesture.startY + gesture.pointerY - gesture.pressY + this._scroll - gesture.startScroll);
         this._previewDrop(gesture);
-        return Clutter.EVENT_STOP;
+    }
+
+    // Held near the top or bottom of the screen, a card takes the board with it,
+    // faster the closer it gets to the edge.
+    _startEdgeScroll(gesture) {
+        gesture.edgeId = GLib.timeout_add(GLib.PRIORITY_DEFAULT, EDGE_TICK_MS, () => {
+            const area = this._workArea();
+            const fromTop = gesture.pointerY - area.y;
+            const fromBottom = area.y + area.height - gesture.pointerY;
+            const push = fromBottom < EDGE_ZONE ? 1 - fromBottom / EDGE_ZONE
+                : fromTop < EDGE_ZONE ? -(1 - fromTop / EDGE_ZONE) : 0;
+            const before = this._scroll;
+            if (push)
+                this._scrollTo(before + push * EDGE_SPEED, false);
+            if (this._scroll !== before) {
+                this._dots.queue_repaint();
+                this._follow(gesture);
+            }
+            return GLib.SOURCE_CONTINUE;
+        });
     }
 
     _lift(gesture) {
@@ -703,6 +738,7 @@ export class Board {
         this._ghost.set_position(rect.x, rect.y);
         this._ghost.set_size(rect.width, rect.height);
         this._showHints(true);
+        this._startEdgeScroll(gesture);
         gesture.lifted = true;
     }
 
@@ -754,6 +790,8 @@ export class Board {
         this._gesture = null;
         if (gesture.tiltId)
             GLib.source_remove(gesture.tiltId);
+        if (gesture.edgeId)
+            GLib.source_remove(gesture.edgeId);
 
         if (gesture.lifted) {
             const grid = this._metrics();
@@ -1110,6 +1148,8 @@ export class Board {
             this._gesture.grab.dismiss();
             if (this._gesture.tiltId)
                 GLib.source_remove(this._gesture.tiltId);
+            if (this._gesture.edgeId)
+                GLib.source_remove(this._gesture.edgeId);
         }
         if (this._reloadId)
             GLib.source_remove(this._reloadId);

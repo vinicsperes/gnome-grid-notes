@@ -64,6 +64,40 @@ test('up and down move inside text that wraps before leaving it', async () => {
     await close();
 });
 
+test('a card held at the edge of the screen scrolls the board', async () => {
+    writeNote('tall.json', {title: 'Tall', items: Array.from({length: 70}, (_, i) => `line ${i}`), grid: {x: 0, y: 0, w: 2}});
+    await sleep(500);
+    const id = '3-synth.json';
+    const r = rect(id);
+    const bottom = board('(a => a.y + a.height)(Main.layoutManager.getWorkAreaForMonitor(Main.layoutManager.primaryIndex))');
+    await drive(`driver.move(${r.x + 150}, ${r.y + 14}); await driver.wait(60); driver.press(); await driver.wait(40);
+        for (let i = 1; i <= 20; i++) { driver.move(${r.x + 150}, ${r.y + 14} + (${bottom - 6} - ${r.y + 14}) * i / 20); await driver.wait(12); }`);
+    await sleep(700);
+    const scrolled = board('b._scroll');
+    assert.ok(scrolled > 100, `scrolled ${scrolled}`);
+    // Its own position, since being lifted also scales it up a little.
+    const held = board(`b._cards.get('${id}').actor.y - b._scroll`);
+    assert.ok(Math.abs(held - (bottom - 6 - 14)) < 3, `still under the pointer, at ${held}`);
+    await drive('driver.release(); await driver.wait(60);');
+    await sleep(600);
+    assert.equal(board('b._gesture'), null);
+    assert.ok(layout()[id].y > 3, 'dropped further down than it could have reached');
+    const again = board('b._scroll');
+    await sleep(300);
+    assert.equal(board('b._scroll'), again, 'and it stops scrolling when let go');
+});
+
+test('away from the edge, a dragged card leaves the board where it is', async () => {
+    board('b._scrollTo(300, false)');
+    const r = rect('tall.json');
+    await drive(`driver.move(${r.x + 150}, 500); await driver.wait(60); driver.press(); await driver.wait(40);
+        for (let i = 1; i <= 10; i++) { driver.move(${r.x + 150}, 500 + 6 * i); await driver.wait(12); }`);
+    await sleep(300);
+    assert.equal(board('b._scroll'), 300);
+    await drive('driver.release(); await driver.wait(60);');
+    await sleep(400);
+});
+
 test('no errors in the shell', () => {
     assert.deepEqual(errors(), []);
 });
