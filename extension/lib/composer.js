@@ -23,6 +23,12 @@ function buildEntry(text, hint, styleClass) {
     inner.line_wrap = true;
     inner.line_wrap_mode = Pango.WrapMode.WORD_CHAR;
     inner.ellipsize = Pango.EllipsizeMode.NONE;
+    // An entry is as tall as its hint even while that's hidden, and a hidden
+    // hint never gets styled. In the default font it would make every line
+    // taller than the text, which jumps the moment editing starts.
+    entry.connect('style-changed', () => {
+        entry.hint_actor.clutter_text.font_description = entry.get_theme_node().get_font();
+    });
     return entry;
 }
 

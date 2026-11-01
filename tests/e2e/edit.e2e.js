@@ -55,7 +55,7 @@ test('double clicking a note leaves it and any uncovered note still', async () =
     const target = clear[0];
     const held = `b._cards.get('${target}')`;
     const r = rect(target);
-    const rowY = () => board(`${held}.body.get_child_at_index(1).get_transformed_position()[1]`);
+    const rowY = () => board(`${held}.body.get_children().map(row => row.get_transformed_position()[1])`);
     const before = rowY();
 
     const seen = await watch(() => drive(`await driver.click(${r.x + 150}, ${r.y + 20}, 2);`));
@@ -64,7 +64,7 @@ test('double clicking a note leaves it and any uncovered note still', async () =
         assert.ok(seen.every(s => s[file] === 255), `${file} kept still`);
 
     assert.equal(rect(target).height, r.height, 'same height');
-    assert.equal(rowY(), before, `the text stayed where it was: ${rowY()} vs ${before}`);
+    assert.deepEqual(rowY(), before, 'the text stayed where it was');
     assert.equal(board(`${held}.body.get_child_at_index(0).get_n_children()`), 2, 'date still shown');
     board('b._composer.finish()');
     await sleep(400);

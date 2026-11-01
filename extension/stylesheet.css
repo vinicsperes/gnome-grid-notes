@@ -18,9 +18,6 @@
 }
 
 .mural-title {
-  /* Entries measure a pixel taller than labels, so the text holds still when
-     a card goes from one to the other. */
-  min-height: 23px;
   font-family: "Ubuntu Sans Mono", monospace;
   font-weight: bold;
   font-size: 18px;
@@ -100,8 +97,6 @@
 .mural-scrim { background-color: rgba(6, 3, 10, 0.72); }
 
 .mural-entry {
-  /* The theme's minimum would make each line taller the moment editing starts. */
-  min-height: 0;
   padding: 0;
   border: none;
   background: none;
