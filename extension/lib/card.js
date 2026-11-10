@@ -21,31 +21,27 @@ export function wrapped(text, styleClass) {
     return label;
 }
 
-const LINK_COLOUR = {red: 0x7a7a, green: 0xa2a2, blue: 0xffff};
+const LINK_COLOUR = '#7aa2ff';
 
-// Pango counts bytes, the text widget counts characters.
-const byteOffset = (text, chars) => new TextEncoder().encode([...text].slice(0, chars).join('')).length;
-
-// Text where [words](address) shows only the words, drawn as a link.
+// Text where [words](address) shows only the words, drawn as a link. Written as
+// markup rather than attributes: St replaces a label's attributes with its own
+// whenever the style is worked out, which happens after the label is built.
 function linked(text, styleClass) {
     const parsed = parseLinks(text);
     const label = wrapped(parsed.shown, styleClass);
     label.parsed = parsed;
     if (!parsed.links.length)
         return label;
-    const attrs = new Pango.AttrList();
+    const chars = [...parsed.shown];
+    const escape = (from, to) => GLib.markup_escape_text(chars.slice(from, to).join(''), -1);
+    let markup = '';
+    let last = 0;
     for (const {start, end} of parsed.links) {
-        const from = byteOffset(parsed.shown, start);
-        const to = byteOffset(parsed.shown, end);
-        const underline = Pango.attr_underline_new(Pango.Underline.SINGLE);
-        const colour = Pango.attr_foreground_new(LINK_COLOUR.red, LINK_COLOUR.green, LINK_COLOUR.blue);
-        for (const attr of [underline, colour]) {
-            attr.start_index = from;
-            attr.end_index = to;
-            attrs.insert(attr);
-        }
+        markup += escape(last, start);
+        markup += `<span underline="single" foreground="${LINK_COLOUR}">${escape(start, end)}</span>`;
+        last = end;
     }
-    label.clutter_text.set_attributes(attrs);
+    label.clutter_text.set_markup(markup + escape(last, chars.length));
     return label;
 }
 

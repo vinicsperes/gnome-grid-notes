@@ -27,6 +27,14 @@ test('a link shows only its words', async () => {
     board('(b._open = url => { global.__opened = url; }, true)');
 });
 
+test('the words of a link stay underlined and coloured once the card is styled', () => {
+    // What gets drawn, read after St has applied the stylesheet to the label.
+    const attrs = board(`${card}.body.get_child_at_index(1).get_last_child()` +
+        '.clutter_text.get_layout().get_attributes().to_string()');
+    assert.match(attrs, /^5 13 underline single$/m, attrs);
+    assert.match(attrs, /^5 13 foreground #7a7aa2a2ffff$/m, attrs);
+});
+
 test('one click on the link opens it, and one on plain text does not', async () => {
     const [x, y] = spotOf(0, 7);
     await drive(`await driver.click(${x}, ${y});`);
