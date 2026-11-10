@@ -40,7 +40,8 @@ on your desktop.
 
 ## Install
 
-Requires GNOME Shell 50 on Wayland.
+Works on GNOME Shell 46 to 50. In an X11 session the notes show on the desktop
+but don't take clicks there yet: bring them in front with `Ctrl` `Alt` `M` to use them.
 
 Download `grid-notes@desktop.shell-extension.zip` from the
 [latest release](https://github.com/vinicsperes/gnome-grid-notes/releases/latest),
