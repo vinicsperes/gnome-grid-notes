@@ -5,5 +5,5 @@
   "shell-version": ["50"],
   "url": "https://github.com/vinicsperes/gnome-grid-notes",
   "settings-schema": "org.gnome.shell.extensions.grid-notes",
-  "version": 1
+  "version": 2
 }
