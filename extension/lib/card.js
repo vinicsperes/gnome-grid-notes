@@ -6,6 +6,7 @@ import Graphene from 'gi://Graphene';
 import Pango from 'gi://Pango';
 import St from 'gi://St';
 
+import {linkAt, parseLinks, sourcePosition} from './links.js';
 import {buildMark, setDoneStyle, setMark, staticBullet} from './mark.js';
 import {daysSince, itemDone, itemText} from './notes.js';
 import {strings} from './strings.js';
@@ -17,6 +18,34 @@ export function wrapped(text, styleClass) {
     label.clutter_text.line_wrap = true;
     label.clutter_text.line_wrap_mode = Pango.WrapMode.WORD_CHAR;
     label.clutter_text.ellipsize = Pango.EllipsizeMode.NONE;
+    return label;
+}
+
+const LINK_COLOUR = {red: 0x7a7a, green: 0xa2a2, blue: 0xffff};
+
+// Pango counts bytes, the text widget counts characters.
+const byteOffset = (text, chars) => new TextEncoder().encode([...text].slice(0, chars).join('')).length;
+
+// Text where [words](address) shows only the words, drawn as a link.
+function linked(text, styleClass) {
+    const parsed = parseLinks(text);
+    const label = wrapped(parsed.shown, styleClass);
+    label.parsed = parsed;
+    if (!parsed.links.length)
+        return label;
+    const attrs = new Pango.AttrList();
+    for (const {start, end} of parsed.links) {
+        const from = byteOffset(parsed.shown, start);
+        const to = byteOffset(parsed.shown, end);
+        const underline = Pango.attr_underline_new(Pango.Underline.SINGLE);
+        const colour = Pango.attr_foreground_new(LINK_COLOUR.red, LINK_COLOUR.green, LINK_COLOUR.blue);
+        for (const attr of [underline, colour]) {
+            attr.start_index = from;
+            attr.end_index = to;
+            attrs.insert(attr);
+        }
+    }
+    label.clutter_text.set_attributes(attrs);
     return label;
 }
 
@@ -157,7 +186,7 @@ export class Card {
         // A broken file has no title of its own, but still needs telling apart.
         const title = note.title || (this.error ? this.file : '');
         if (title) {
-            const label = wrapped(title, 'grid-notes-title');
+            const label = linked(title, 'grid-notes-title');
             head.add_child(label);
             this._spots.push({field: 'title', label});
         }
@@ -172,7 +201,7 @@ export class Card {
         items.forEach((item, index) => {
             const row = new St.BoxLayout({style_class: 'grid-notes-row'});
             const done = itemDone(item);
-            const label = wrapped(itemText(item), 'grid-notes-item');
+            const label = linked(itemText(item), 'grid-notes-item');
             if (done === null) {
                 row.add_child(staticBullet());
             } else {
@@ -193,7 +222,7 @@ export class Card {
                 style_class: 'grid-notes-next',
             });
             next.add_child(new St.Label({text: strings.next, style_class: 'grid-notes-next-head'}));
-            const label = wrapped(note.next, 'grid-notes-next-text');
+            const label = linked(note.next, 'grid-notes-next-text');
             next.add_child(label);
             this.body.add_child(next);
             this._spots.push({field: 'next', label});
@@ -217,12 +246,24 @@ export class Card {
         setDoneStyle(label, done);
     }
 
-    // The field and character at a point on screen, or null off any text.
+    // The field and character at a point on screen, or null off any text. The
+    // character is counted in the text of the file, not in what the card shows.
     locate(x, y) {
+        const hit = this._hit(x, y);
+        return hit && {field: hit.field, position: sourcePosition(hit.label.parsed, hit.position)};
+    }
+
+    // The address of the link at a point on screen, or null.
+    linkAt(x, y) {
+        const hit = this._hit(x, y);
+        return hit ? linkAt(hit.label.parsed, hit.position)?.url ?? null : null;
+    }
+
+    _hit(x, y) {
         for (const {field, label} of this._spots) {
             const [inside, lx, ly] = label.transform_stage_point(x, y);
             if (inside && ly >= 0 && ly < label.height)
-                return {field, position: label.clutter_text.coords_to_position(lx, ly)};
+                return {field, label, position: label.clutter_text.coords_to_position(lx, ly)};
         }
         return null;
     }

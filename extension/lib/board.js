@@ -1,6 +1,7 @@
 // The board: keeps the cards in step with the note files, lays them out on the
 // grid, and sits at the right height in the stack of windows.
 import Clutter from 'gi://Clutter';
+import Gio from 'gi://Gio';
 import GLib from 'gi://GLib';
 import Meta from 'gi://Meta';
 import Shell from 'gi://Shell';
@@ -599,7 +600,7 @@ export class Board {
         card.onDelete = () => this._delete(card);
         card.onToggle = index => this._toggle(card, index);
         actor.connect('button-press-event', (_, event) => this._onPress(card, event));
-        actor.connect('motion-event', (_, event) => this._onMotion(event));
+        actor.connect('motion-event', (_, event) => this._onMotion(event, card));
         actor.connect('button-release-event', (_, event) => this._onRelease(event));
         actor.connect('scroll-event', (_, event) => this._onScroll(event));
 
@@ -726,8 +727,13 @@ export class Board {
         return Clutter.EVENT_STOP;
     }
 
-    _onMotion(event) {
+    _onMotion(event, card) {
         const gesture = this._gesture;
+        if (!gesture && !this._composer && !card.error) {
+            const [px, py] = event.get_coords();
+            card.actor.set_cursor_type(card.linkAt(px, py)
+                ? Clutter.CursorType.POINTING_HAND : Clutter.CursorType.GRAB);
+        }
         if (!gesture || gesture.resizing)
             return Clutter.EVENT_PROPAGATE;
         const [x, y] = event.get_coords();
@@ -860,11 +866,26 @@ export class Board {
     }
 
     _onClick(card, {pressX, pressY}) {
+        // A link opens with one click, and doesn't count towards a double click.
+        const url = card.linkAt(pressX, pressY);
+        if (url) {
+            this._lastClick = null;
+            this._open(url);
+            return;
+        }
         const now = GLib.get_monotonic_time() / 1000;
         const isDouble = this._lastClick?.card === card && now - this._lastClick.time < DOUBLE_CLICK_MS;
         this._lastClick = isDouble ? null : {card, time: now};
         if (isDouble && !card.error)
             this._edit(card, pressX, pressY);
+    }
+
+    _open(url) {
+        try {
+            Gio.AppInfo.launch_default_for_uri(url, global.create_app_launch_context(0, -1));
+        } catch (e) {
+            Main.notifyError(url, e.message);
+        }
     }
 
     // In front of the windows, with everything else dimmed. Holds the pointer
