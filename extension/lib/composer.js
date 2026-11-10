@@ -5,6 +5,7 @@ import Pango from 'gi://Pango';
 import St from 'gi://St';
 
 import {whenText, wrapped} from './card.js';
+import {verticalBox} from './compat.js';
 import {buildMark, setDoneStyle, setMark} from './mark.js';
 import {itemDone, itemText, makeItem} from './notes.js';
 import {strings} from './strings.js';
@@ -64,8 +65,7 @@ export class Composer {
         card.body.destroy_all_children();
 
         this._title = this._wire(buildEntry(note.title, strings.titleHint, 'grid-notes-title'));
-        const head = new St.BoxLayout({
-            orientation: Clutter.Orientation.VERTICAL,
+        const head = verticalBox({
             style_class: 'grid-notes-head',
         });
         head.add_child(this._title);
@@ -175,8 +175,7 @@ export class Composer {
 
     _showNext(text = '') {
         this._next = this._wire(buildEntry(text, strings.nextHint, 'grid-notes-next-text'));
-        this._nextBox = new St.BoxLayout({
-            orientation: Clutter.Orientation.VERTICAL,
+        this._nextBox = verticalBox({
             style_class: 'grid-notes-next',
         });
         this._nextBox.add_child(new St.Label({text: strings.next, style_class: 'grid-notes-next-head'}));

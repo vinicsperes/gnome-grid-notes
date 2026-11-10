@@ -6,6 +6,7 @@ import Graphene from 'gi://Graphene';
 import Pango from 'gi://Pango';
 import St from 'gi://St';
 
+import {Cursor, setCursor, verticalBox} from './compat.js';
 import {linkAt, parseLinks, sourcePosition} from './links.js';
 import {buildMark, setDoneStyle, setMark, staticBullet} from './mark.js';
 import {daysSince, itemDone, itemText} from './notes.js';
@@ -72,10 +73,9 @@ export class Card {
             track_hover: true,
             pivot_point: new Graphene.Point({x: 0.5, y: 0.5}),
         });
-        this.actor.set_cursor_type(Clutter.CursorType.GRAB);
-        this.body = new St.BoxLayout({
+        setCursor(this.actor, Cursor.GRAB);
+        this.body = verticalBox({
             style_class: 'grid-notes-body',
-            orientation: Clutter.Orientation.VERTICAL,
             x_expand: true,
             y_expand: true,
             y_align: Clutter.ActorAlign.START,
@@ -93,7 +93,7 @@ export class Card {
             x_align: Clutter.ActorAlign.END,
             y_align: Clutter.ActorAlign.START,
         });
-        this.close.set_cursor_type(Clutter.CursorType.POINTER);
+        setCursor(this.close, Cursor.POINTER);
         this.close.connect('clicked', () => this._onClose());
         this.actor.add_child(this.close);
         this.actor.connect('notify::hover', () => this._syncControls());
@@ -163,8 +163,8 @@ export class Card {
             x_align: align,
             y_align: Clutter.ActorAlign.END,
         }));
-        grip.set_cursor_type(side === 'right'
-            ? Clutter.CursorType.SE_RESIZE : Clutter.CursorType.SW_RESIZE);
+        setCursor(grip, side === 'right'
+            ? Cursor.SE_RESIZE : Cursor.SW_RESIZE);
         this.actor.add_child(grip);
         return grip;
     }
@@ -173,8 +173,7 @@ export class Card {
         this.body.destroy_all_children();
         const {note} = this;
 
-        const head = new St.BoxLayout({
-            orientation: Clutter.Orientation.VERTICAL,
+        const head = verticalBox({
             style_class: 'grid-notes-head',
         });
         // Which text on the card belongs to which field, to find what was clicked.
@@ -213,8 +212,7 @@ export class Card {
         });
 
         if (note.next) {
-            const next = new St.BoxLayout({
-                orientation: Clutter.Orientation.VERTICAL,
+            const next = verticalBox({
                 style_class: 'grid-notes-next',
             });
             next.add_child(new St.Label({text: strings.next, style_class: 'grid-notes-next-head'}));
@@ -288,7 +286,7 @@ export class Card {
             this.actor.add_style_class_name('grid-notes-card-editing');
         else
             this.actor.remove_style_class_name('grid-notes-card-editing');
-        this.actor.set_cursor_type(editing ? Clutter.CursorType.DEFAULT : Clutter.CursorType.GRAB);
+        setCursor(this.actor, editing ? Cursor.DEFAULT : Cursor.GRAB);
         for (const control of [...this.grips, this.close])
             control.visible = !editing;
     }

@@ -2,7 +2,7 @@
   "uuid": "grid-notes@desktop",
   "name": "Grid Notes",
   "description": "Notes on your desktop that snap to a grid. Drag, resize and write them in place; each one is a plain JSON file.",
-  "shell-version": ["50"],
+  "shell-version": ["46", "47", "48", "49", "50"],
   "url": "https://github.com/vinicsperes/gnome-grid-notes",
   "settings-schema": "org.gnome.shell.extensions.grid-notes",
   "version": 2

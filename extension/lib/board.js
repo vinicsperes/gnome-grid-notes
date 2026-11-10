@@ -10,6 +10,7 @@ import St from 'gi://St';
 import * as Main from 'resource:///org/gnome/shell/ui/main.js';
 
 import {Card} from './card.js';
+import {Cursor, setCursor} from './compat.js';
 import {Composer} from './composer.js';
 import {compact, metrics, move, place, resize} from './grid.js';
 import {emptyNote, isBlank, isoDay} from './notes.js';
@@ -218,7 +219,7 @@ export class Board {
             opacity: 0,
             visible: false,
         });
-        this._more.set_cursor_type(Clutter.CursorType.POINTER);
+        setCursor(this._more, Cursor.POINTER);
         this._more.connect('clicked', () => {
             const page = this._workArea().height * 0.8;
             this._scrollTo(this._atEnd() ? 0 : this._scroll + page);
@@ -319,7 +320,7 @@ export class Board {
             y_align: Clutter.ActorAlign.CENTER,
         }));
         const button = new St.Button({style_class: 'grid-notes-toast-undo', label: strings.undo});
-        button.set_cursor_type(Clutter.CursorType.POINTER);
+        setCursor(button, Cursor.POINTER);
         button.connect('clicked', () => this._undoDelete());
         this._toast.add_child(button);
         this.layer.add_child(this._toast);
@@ -731,8 +732,8 @@ export class Board {
         const gesture = this._gesture;
         if (!gesture && !this._composer && !card.error) {
             const [px, py] = event.get_coords();
-            card.actor.set_cursor_type(card.linkAt(px, py)
-                ? Clutter.CursorType.POINTING_HAND : Clutter.CursorType.GRAB);
+            setCursor(card.actor, card.linkAt(px, py)
+                ? Cursor.POINTING_HAND : Cursor.GRAB);
         }
         if (!gesture || gesture.resizing)
             return Clutter.EVENT_PROPAGATE;
@@ -785,7 +786,7 @@ export class Board {
         const grid = this._metrics();
         card.settle();
         actor.add_style_class_name('grid-notes-card-lifted');
-        actor.set_cursor_type(Clutter.CursorType.GRABBING);
+        setCursor(actor, Cursor.GRABBING);
         this._sheet.set_child_above_sibling(actor, null);
         actor.ease({scale_x: 1.03, scale_y: 1.03, ...MOTION.lift});
 
@@ -853,7 +854,7 @@ export class Board {
             const grid = this._metrics();
             const rect = this._rectOf(this._layout.find(i => i.id === card.file), grid);
             actor.remove_style_class_name('grid-notes-card-lifted');
-            actor.set_cursor_type(Clutter.CursorType.GRAB);
+            setCursor(actor, Cursor.GRAB);
             actor.remove_all_transitions();
             actor.ease({...rect, scale_x: 1, scale_y: 1, rotation_angle_z: 0, ...MOTION.drop});
             this._showHints(false);

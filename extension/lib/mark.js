@@ -3,6 +3,8 @@
 import Clutter from 'gi://Clutter';
 import St from 'gi://St';
 
+import {Cursor, setCursor} from './compat.js';
+
 const centred = {x_align: Clutter.ActorAlign.CENTER, y_align: Clutter.ActorAlign.CENTER};
 
 const bullet = () => new St.Label({text: '•', style_class: 'grid-notes-bullet', ...centred});
@@ -28,7 +30,7 @@ export function setMark(button, done) {
 
 export function buildMark(done) {
     const button = new St.Button(slot);
-    button.set_cursor_type(Clutter.CursorType.POINTER);
+    setCursor(button, Cursor.POINTER);
     setMark(button, done);
     return button;
 }
