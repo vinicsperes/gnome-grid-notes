@@ -27,6 +27,8 @@ on your desktop.
 - **Write in place**: the card grows as you type, pushing its neighbours along,
   and what you write is saved as you go
 - **Checkboxes**: any line can be one, ticked with a click right on the card
+- **Links**: write `[words](https://...)` in the title, a line or the next step,
+  and the card shows the words, a click opens the address
 - **Undo**: a deleted note can be brought back to the same place for a few seconds
 - **Scrolls when it has to**: notes taller than the screen stay within reach
 - **Works over your windows**: one shortcut brings the notes forward to jot
@@ -80,6 +82,7 @@ Log out and back in and turn it on the same way. To remove it, `make uninstall`.
 | Resize a note | Drag a bottom corner |
 | Edit a note | Double click it |
 | Tick a checkbox | Click it |
+| Open a link | Click it |
 | Delete a note | **×** in its corner, twice, then **Undo** if that was a mistake. After that it's in the trash |
 | Scroll, when the notes don't fit | The wheel or touchpad over a note, or the arrow at the bottom. A card dragged to the edge scrolls too |
 | Hide or show all notes | `Ctrl` `Alt` `H` |
@@ -115,6 +118,9 @@ Notes live in `~/.local/share/grid-notes`, one `.json` file each:
 
 A line in `items` can also be a checkbox, written as
 `{"text": "Book the venue", "done": false}`.
+
+Any text can hold a link, written `[the docs](https://example.com)`. The card
+shows only the words. Only `http://`, `https://` and `mailto:` addresses open.
 
 Every field is optional. `date` shows up as "2 days ago", and `next` gets the
 highlighted box at the bottom. Grid Notes adds a `grid` field with the position, and
